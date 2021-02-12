@@ -1,0 +1,9 @@
+Jun 30 18:58:13.515 DEBUG [goedx] unknown `event type:LoadGame`
+Jun 30 18:58:13.515 DEBUG [goedx] no handler for `event type:Rank`
+Jun 30 18:58:14.215 DEBUG [goedx] no handler for `event type:Progress`
+Jun 30 18:58:14.215 DEBUG [goedx] no handler for `event type:Reputation`
+Jun 30 18:58:14.215 DEBUG [goedx] unknown `event type:EngineerProgress`
+Jun 30 18:58:14.922 DEBUG [goedx] unknown `event type:Missions`
+Jun 30 18:58:16.329 DEBUG [goedx] unknown `event type:Statistics`
+Jun 30 18:58:16.329 DEBUG [goedx] unknown `event type:Cargo`
+Jun 30 18:58:16.329 DEBUG [goedx] unknown `event type:Shutdown`

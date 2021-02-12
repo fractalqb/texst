@@ -1,0 +1,7 @@
+skip
+>Jun 30 18:58:13.515 DEBUG [goedx] no handler for `event type:Rank`
+>Jun 30 18:58:14.215 DEBUG [goedx] no handler for `event type:Progress`
+skip 3
+>Jun 30 18:58:16.329 DEBUG [goedx] unknown `event type:Statistics`
+>Jun 30 18:58:16.329 DEBUG [goedx] unknown `event type:Cargo`
+>Jun 30 18:58:16.329 DEBUG [goedx] unknown `event type:Shutdown`

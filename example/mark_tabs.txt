@@ -1,0 +1,15 @@
+>a	bbbb
+^ x	----
+>aa	bbbb
+^  x	----
+>aaa	bbbb
+^   x	----
+>aaaa	bbbb
+^    x	----
+>aaaaa	bbbb
+^     x	----
+>aaaaaa	bbbb
+^      x	----
+>aaaaaaa	bbbb
+^       x	----
+

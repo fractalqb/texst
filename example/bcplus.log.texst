@@ -1,0 +1,61 @@
+*=TTTTTTTTTTTTTTTTTTT
+> Jun 30 18:55:52.901 INFO  [BC+] create `localization dir:test1/test.Ind9/l10n`
+ =                                                                    nnnn
+> Jun 30 18:55:52.901 INFO  [goedx] load state from `file:test1/test.Ind9/bcplus.json`
+ =                                                                   nnnn
+> Jun 30 18:55:52.901 INFO  [BC+] state `file:test1/test.Ind9/bcplus.json` not exists
+ =                                                       nnnn
+> Jun 30 18:55:52.914 DEBUG [goedx.app.l10n] clearing maps
+> Jun 30 18:55:52.914 DEBUG [BC+] load `template:screen` from `file:../assets/goxic/screen.html`
+> Jun 30 18:55:52.915 DEBUG [BC+] load `template:travel` from `file:../assets/goxic/en/travel.html`
+> Jun 30 18:55:52.915 DEBUG [BC+] `screen:travel` templates `placeholders:[theme init-hdr data]`
+> Jun 30 18:55:52.915 INFO  [BC+] data `dir:test1/test.Ind9`
+ =                                                     nnnn
+> Jun 30 18:55:52.915 DEBUG [BC+] assert `dir:../assets`
+> Jun 30 18:55:52.915 INFO  [BC+] TODO: web route `screen:travel`
+> Jun 30 18:55:52.915 INFO  [BC+] run web ui on http `addr::1337`
+> Jun 30 18:55:52.915 INFO  [watchED] watching journals in `dir:test1/test.Ind9/j`
+ =                                                                         nnnn
+> Jun 30 18:55:52.915 INFO  [watchED] file poller waiting for journals
+> Jun 30 18:55:53.908 DEBUG [watchED] enqueue new `journal:test1/test.Ind9/j/Journal.01.log`
+ =                                                                    nnnn
+> Jun 30 18:55:53.908 INFO  [watchED] start watching `file:test1/test.Ind9/j/Journal.01.log`
+ =                                                                    nnnn
+> Jun 30 18:55:53.909 DEBUG [goedx.app.l10n] load `lang:en-UK` from `dir:test1/test.Ind9/l10n`
+ =                                                                                  nnnn
+> Jun 30 18:55:53.909 INFO  [goedx.app.l10n] create `lang:en-UK` directory
+> Jun 30 18:55:53.909 WARN  [goedx.app.l10n] no `map:shiptype` `file:test1/test.Ind9/l10n/en-UK/shiptype.json`
+ =                                                                              nnnn
+> Jun 30 18:55:53.909 WARN  [goedx.app.l10n] no `map:economy` `file:test1/test.Ind9/l10n/en-UK/economy.json`
+ =                                                                             nnnn
+> Jun 30 18:55:53.909 WARN  [goedx.app.l10n] no `map:security` `file:test1/test.Ind9/l10n/en-UK/security.json`
+ =                                                                              nnnn
+> Jun 30 18:55:53.909 WARN  [goedx.app.l10n] no `map:matnames-raw` `file:test1/test.Ind9/l10n/en-UK/matnames-raw.json`
+ =                                                                                  nnnn
+> Jun 30 18:55:53.909 WARN  [goedx.app.l10n] no `map:matnames-man` `file:test1/test.Ind9/l10n/en-UK/matnames-man.json`
+ =                                                                                  nnnn
+> Jun 30 18:55:53.909 WARN  [goedx.app.l10n] no `map:matnames-enc` `file:test1/test.Ind9/l10n/en-UK/matnames-enc.json`
+ =                                                                                  nnnn
+> Jun 30 18:55:54.610 INFO  [goedx] load commander from `file:test1/test.Ind9/F007/commander.json`
+ =                                                                       nnnn
+> Jun 30 18:55:54.610 ERROR [goedx] open test1/test.Ind9/F007/commander.json: no such file or directory
+ =                                                  nnnn
+> Jun 30 18:55:55.311 DEBUG [goedx] unknown `event type:LoadGame`
+> Jun 30 18:55:55.311 DEBUG [goedx] no handler for `event type:Rank`
+> Jun 30 18:55:56.012 DEBUG [goedx] no handler for `event type:Progress`
+> Jun 30 18:55:56.012 DEBUG [goedx] no handler for `event type:Reputation`
+> Jun 30 18:55:56.012 DEBUG [goedx] unknown `event type:EngineerProgress`
+> Jun 30 18:55:56.719 DEBUG [goedx] unknown `event type:Missions`
+> Jun 30 18:55:58.126 DEBUG [goedx] unknown `event type:Statistics`
+> Jun 30 18:55:58.126 DEBUG [goedx] unknown `event type:Cargo`
+> Jun 30 18:55:58.126 DEBUG [goedx] unknown `event type:Shutdown`
+> Jun 30 18:55:58.412 INFO  [BC+] BC+ v0.10.1-a+98 interrupted; shutting down...
+> Jun 30 18:55:58.412 INFO  [watchED] exit journal watcher
+> Jun 30 18:55:58.412 DEBUG [goedx.app.l10n] saving current `lang:en-UK` to `dir:test1/test.Ind9/l10n`
+ =                                                                                          nnnn
+> Jun 30 18:55:58.413 INFO  [goedx] save state to `file:test1/test.Ind9/bcplus.json`
+ =                                                                 nnnn
+> Jun 30 18:55:58.414 INFO  [goedx] create `commander:John Doe` `dir:test1/test.Ind9/F007`
+ =                                                                              nnnn
+> Jun 30 18:55:58.414 INFO  [goedx] save `commander:John Doe` with `fid:F007` to `file:test1/test.Ind9/F007/commander.json`
+ =                                                                                                nnnn

@@ -1,0 +1,10 @@
+# Define two interleaving groups '1' and '2'
+\%12
+# Globally mask the segments for timestamps
+*=ttt tt tt tt tt ttt
+# Mask temorary file extensions where they appear
+>1Jun 27 21:58:11.112 INFO  [thread1] create localization dir:test1/test.tmpext/l10n
+ +                                                                       xxxxxx
+>1Jun 27 18:58:11.113 DEBUG [thread1] clearing maps
+>2Jun 27 21:58:11.125 INFO  [thread2] load state from file:test1/test.tmpext/bcplus.json
+ +                                                                    xxxxxx

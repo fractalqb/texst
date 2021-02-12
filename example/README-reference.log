@@ -1,0 +1,14 @@
+Jun 27 18:58:11.112 INFO  [BC+] create `localization dir:test1/test.xCuf/l10n`
+Jun 27 18:58:11.113 INFO  [goedx] load state from `file:test1/test.xCuf/bcplus.json`
+Jun 27 18:58:11.113 INFO  [BC+] state `file:test1/test.xCuf/bcplus.json` not exists
+Jun 27 18:58:11.125 DEBUG [goedx] clearing maps
+Jun 27 18:58:11.126 DEBUG [BC+] load `template:screen` from `file:../assets/goxic/screen.html`
+Jun 27 18:58:11.126 DEBUG [BC+] load `template:travel` from `file:../assets/goxic/en/travel.html`
+Jun 27 18:58:11.127 DEBUG [BC+] `screen:travel` templates `placeholders:[theme init-hdr data]`
+Jun 27 18:58:11.127 INFO  [BC+] data `dir:test1/test.xCuf`
+Jun 27 18:58:11.127 DEBUG [BC+] assert `dir:../assets`
+Jun 27 18:58:11.128 INFO  [BC+] TODO: web route `screen:travel`
+Jun 27 18:58:11.128 INFO  [BC+] run web ui on http `addr::1337`
+Jun 27 18:58:11.128 INFO  [watchED] watching journals in `dir:test1/test.xCuf/j`
+Jun 27 18:58:11.128 INFO  [watchED] file poller waiting for journals
+Jun 27 18:58:12.113 DEBUG [watchED] enqueue new `journal:test1/test.xCuf/j/Journal.01.log`
