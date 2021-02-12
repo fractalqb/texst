@@ -8,7 +8,7 @@ import (
 	"log"
 	"os"
 
-	"git.fractalqb.de/fractalqb/texst"
+	"github.com/fractalqb/texst"
 )
 
 type errLog string

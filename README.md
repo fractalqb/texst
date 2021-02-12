@@ -15,7 +15,7 @@ not embed markers into the reference text line because it would need
 some very sophisticated escaping to make arbitrary reference text
 feasible.  Instead each reference text line may be followed by
 argument lines, that modify the way the reference text is matched
-against the checked text. Argument lines start with '␣' (U+0020). Some
+against the checked text. Argument lines start with ' ' (U+0020). Some
 types of argument lines are used to mark segments of the reference
 text to not match exactly to the subject text:
 

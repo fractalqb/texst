@@ -1,4 +1,4 @@
-module git.fractalqb.de/fractalqb/texst
+module github.com/fractalqb/texst
 
 go 1.15
 

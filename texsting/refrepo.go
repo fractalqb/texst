@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"git.fractalqb.de/fractalqb/texst"
+	"github.com/fractalqb/texst"
 )
 
 type RefRepo struct {
@@ -92,10 +92,10 @@ func (rr *RefRepo) reffile(t *testing.T, reffile string) string {
 		if suffix == "" {
 			suffix = ".texst"
 		}
-		return t.Name() + suffix
+		return filepath.Join(rr.Dir, t.Name()+suffix)
 	}
 	if rr.Suffix == "" || strings.HasSuffix(reffile, rr.Suffix) {
-		return filepath.Join(t.Name(), reffile)
+		return filepath.Join(rr.Dir, t.Name(), reffile)
 	}
-	return filepath.Join(t.Name(), reffile+rr.Suffix)
+	return filepath.Join(rr.Dir, t.Name(), reffile+rr.Suffix)
 }
