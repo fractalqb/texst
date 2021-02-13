@@ -1,9 +1,16 @@
 # texst – Text Tests
+[![Build](https://travis-ci.com/fractalqb/texst.svg?branch=main)](https://travis-ci.com/github/fractalqb/texst)
+[![codecov](https://codecov.io/gh/fractalqb/texst/branch/master/graph/badge.svg)](https://codecov.io/gh/fractalqb/texst)
+[![Go Report Card](https://goreportcard.com/badge/github.com/fractalqb/texst)](https://goreportcard.com/report/github.com/fractalqb/texst)
+[![Go Reference](https://pkg.go.dev/badge/github.com/fractalqb/texst.svg)](https://pkg.go.dev/github.com/fractalqb/texst)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](http://www.gnu.org/licenses/agpl-3.0)
+
 Package texst checks text files against a reference text
 specifications. The simplest reference text would be the verbatim text
-prefixed with a 'reference text' line tag, e.g. "> ". This would only
-match exactly the verbatim text. To do more complex matching one can
-add other line types to the reference text specification.
+with each line prefixed with a 'reference text' line tag, e.g. ">
+". This would only match exactly the verbatim text. To do more complex
+matching one can add other line types to the reference text
+specification.
 
 Line types are recognised by the rune in the first column of each line
 in the reference text specification. There are line types that serve
@@ -106,17 +113,4 @@ Jun 27 21:58:11.113 INFO  [thread2] load state from `file:test1/test.xCuf/bcplus
 …
 ```
 
-match the reference.
-
-
-## Preamble Lines
-
-The type of a preamble line is recognized from the rune in the second
-column of the line:
-
-```
-\%<interleaving groups>
-```
-
-A preamble line with tag '%' sets the interleaving groups of the
-reference text specification.
+match the reference. For more details use [the reference documentation](https://pkg.go.dev/github.com/fractalqb/texst).

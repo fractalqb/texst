@@ -52,7 +52,7 @@ func TestCompare_miss(t *testing.T) {
 			})
 			if err == nil {
 				t.Fatal("no missmatch detected")
-			} else if _, ok := err.(MissmatchCount); !ok {
+			} else if _, ok := err.(MismatchCount); !ok {
 				t.Fatalf("expected missmatch count but got error: %s", err)
 			}
 		}

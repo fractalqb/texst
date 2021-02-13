@@ -19,8 +19,8 @@ type RefRepo struct {
 	MissLimit int
 }
 
-func (rr *RefRepo) Compare(reffile string, subj io.Reader, onmiss texst.MissmatchFunc) error {
-	cmpr := texst.Compare{MissmatchLimit: rr.MissLimit}
+func (rr *RefRepo) Compare(reffile string, subj io.Reader, onmiss texst.MismatchFunc) error {
+	cmpr := texst.Compare{MismatchLimit: rr.MissLimit}
 	rd, err := os.Open(reffile)
 	if err != nil {
 		return err

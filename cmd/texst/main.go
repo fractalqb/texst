@@ -69,25 +69,21 @@ func checkFile(ref, subj string) bool {
 	if err == nil {
 		log.Printf("%s matches reference %s\n", subj, ref)
 		return true
-	} else {
-		log.Printf("%s mismatch with %s: %s", subj, ref, err)
-		return false
 	}
+	log.Printf("%s mismatch with %s: %s", subj, ref, err)
+	return false
 }
 
-func usage() {
-	wr := flag.CommandLine.Output()
-	fmt.Fprintf(wr, "Usage of %s (v%d.%d.%d-%s+%d):\n",
-		os.Args[0],
-		texst.VMajor, texst.VMinor, texst.VPatch,
-		texst.VQuality,
-		texst.VBuild,
-	)
-	flag.PrintDefaults()
-}
+// func usage() {
+// 	wr := flag.CommandLine.Output()
+// 	fmt.Fprintf(wr, "Usage of %s :\n",
+// 		os.Args[0],
+// 	)
+// 	flag.PrintDefaults()
+// }
 
 func main() {
-	flag.Usage = usage
+	//	flag.Usage = usage
 	flag.BoolVar(&fPrepare, "p", false, "Prepare reference files")
 	flag.BoolVar(&fClean, "c", false, "Clean reference files")
 	flag.StringVar(&fRefFile, "r", "", "Set reference file")

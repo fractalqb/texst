@@ -60,6 +60,8 @@ func (s *segment) sub(m *segment) (split *segment) {
 	return nil
 }
 
+// RefLine represents a line of reference text with its arguments. API users
+// will get current reference lines when using the MismatchFunc.
 type RefLine struct {
 	igroup   rune
 	text     string
@@ -166,11 +168,11 @@ func (rl *RefLine) match(preSeg int, subj string, fix bool) bool {
 	afterSeg := func(subj string) bool {
 		switch seg.mode {
 		case ArgSegExact:
-			if sl := seg.len(); sl > len(subj) {
+			sl := seg.len()
+			if sl > len(subj) {
 				return false
-			} else {
-				return rl.match(preSeg+1, subj[sl:], true)
 			}
+			return rl.match(preSeg+1, subj[sl:], true)
 		case ArgSegOpt:
 			return rl.match(preSeg+1, subj, false)
 		case ArgSegVar:

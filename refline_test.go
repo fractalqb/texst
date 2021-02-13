@@ -58,14 +58,14 @@ func TestRefLine_lineSegs(t *testing.T) {
 	rl.lineSegs(" xy xx  zzzz", ArgSegExact)
 	rl.lineSegs("a  bbaa  cc", ArgSegExact)
 	expect := []segment{
-		segment{name: 'a', start: 0, end: 1, mode: ArgSegExact},
-		segment{name: 'x', start: 1, end: 2, mode: ArgSegExact},
-		segment{name: 'y', start: 2, end: 3, mode: ArgSegExact},
-		segment{name: 'b', start: 3, end: 5, mode: ArgSegExact},
-		segment{name: 'a', start: 5, end: 7, mode: ArgSegExact},
-		segment{name: 'z', start: 8, end: 9, mode: ArgSegExact},
-		segment{name: 'c', start: 9, end: 11, mode: ArgSegExact},
-		segment{name: 'z', start: 11, end: 12, mode: ArgSegExact},
+		{name: 'a', start: 0, end: 1, mode: ArgSegExact},
+		{name: 'x', start: 1, end: 2, mode: ArgSegExact},
+		{name: 'y', start: 2, end: 3, mode: ArgSegExact},
+		{name: 'b', start: 3, end: 5, mode: ArgSegExact},
+		{name: 'a', start: 5, end: 7, mode: ArgSegExact},
+		{name: 'z', start: 8, end: 9, mode: ArgSegExact},
+		{name: 'c', start: 9, end: 11, mode: ArgSegExact},
+		{name: 'z', start: 11, end: 12, mode: ArgSegExact},
 	}
 	eq := reflect.DeepEqual(rl.segs, expect)
 	if !eq {
@@ -150,13 +150,13 @@ func TestRefLine_Read(t *testing.T) {
 			t.Fatalf("unexpected error: %s", err)
 		}
 		expect := []segment{
-			segment{
+			{
 				name:  'x',
 				mode:  ArgSegExact,
 				start: 2, end: 4,
 				refStart: 2, refEnd: 4,
 			},
-			segment{
+			{
 				name:  'y',
 				mode:  ArgSegExact,
 				start: 13, end: 20,

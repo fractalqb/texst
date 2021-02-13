@@ -10,13 +10,11 @@ import (
 	"git.fractalqb.de/fractalqb/icontainer/islist"
 )
 
-//go:generate versioner -pkg texst -bno Build -p V VERSION version.go
-
 // Line Tags
 const (
 	// Marks a comment line.
 	TagComment = '#'
-	// Reamble lines must be the first lines of a reference text specification.
+	// Preamble lines must be the first lines of a reference text specification.
 	TagPreamble = '\\'
 	// Global segment lines set/clear file-global tags.
 	TagGlobalSeg = '*'
@@ -36,19 +34,24 @@ const (
 	PreIGroups = '%'
 )
 
-// OnMissFunc is called for each missmatch in the subject text during
-// comparison.
-type MissmatchFunc func(slineno int, sline string, refs []*RefLine) (abort bool)
+// MismatchFunc is called for each mismatch in the subject text during
+// comparison. It gets the respective line number 'slineno' in the subject
+// file, the text line 'sline' and the reference lines of each interleaving
+// group that were matched against the subject line.
+//
+// If the MismatchFunc returns 'abort' == true the comparison terminates
+// immediately.
+type MismatchFunc func(slineno int, sline string, refs []*RefLine) (abort bool)
 
-// Compare performs the comparison of a subject text againts a reference text
-// specification. A zero value is valid for use and can be resued for
+// Compare performs the comparison of a subject text against a reference text
+// specification. A zero value is valid for use and can be reused for
 // more than one comparison. It must not be used concurrently.
 type Compare struct {
-	// Specifies the number of detected missmatches after which the comparison
-	// is aborted. If MissLimit == 0, do not abort.
-	MissmatchLimit int
-	// OnMiss is called on each detected missmatch
-	OnMissmatch MissmatchFunc
+	// Specifies the number of detected mismatches after which the comparison
+	// is aborted. If MismatchLimit == 0, do not abort.
+	MismatchLimit int
+	// OnMismatch is called on each detected mismatch
+	OnMismatch MismatchFunc
 
 	igls   []rune
 	igrefs map[rune]*islist.List
@@ -57,12 +60,13 @@ type Compare struct {
 	gsegs  string
 }
 
-type MissmatchCount int
+type MismatchCount int
 
-func (mc MissmatchCount) Error() string {
-	return fmt.Sprintf("%d missmatches", mc)
+func (mc MismatchCount) Error() string {
+	return fmt.Sprintf("%d mismatches", mc)
 }
 
+// RefError is returned for errors during processing of the reference file.
 type RefError struct {
 	Line int
 	err  error
@@ -74,6 +78,7 @@ func (e RefError) Error() string {
 
 func (e RefError) Unwrap() error { return e.err }
 
+// SubjError is returned for errors during processing of the subject file.
 type SubjError struct {
 	Line int
 	err  error
@@ -85,7 +90,14 @@ func (e SubjError) Error() string {
 
 func (e SubjError) Unwrap() error { return e.err }
 
-func (cmpr *Compare) Readers(ref, subj io.Reader, onmiss MissmatchFunc) error {
+// Readers compares the reference text and subject text from the io.Readers
+// 'ref' and 'subj'. If 'onmiss' is not nil it will be called on each detected
+// mismatch. The number of detected mismatches will be returned as
+// MismatchCount error or as nil if no mismatch and no other error occurs.
+// Errors regarding read operations or syntax errors in 'ref' or 'subj' will
+// terminate the comparison immediately and be returned as RefError or
+// SubjError, depending on the source of error.
+func (cmpr *Compare) Readers(ref, subj io.Reader, onmiss MismatchFunc) error {
 	var rr *bufio.Reader
 	if tmp, ok := ref.(*bufio.Reader); ok {
 		rr = tmp
@@ -97,14 +109,16 @@ func (cmpr *Compare) Readers(ref, subj io.Reader, onmiss MissmatchFunc) error {
 	return err
 }
 
-func (cmpr *Compare) Strings(ref, subj string, onmiss MissmatchFunc) error {
+// Strings compares the reference text and subject text from the strings
+// 'ref' and 'subj'. For more detail read Readers documentation.
+func (cmpr *Compare) Strings(ref, subj string, onmiss MismatchFunc) error {
 	return cmpr.Readers(
 		strings.NewReader(ref),
 		strings.NewReader(subj),
 		onmiss)
 }
 
-func (cmpr *Compare) cmpr(ref *bufio.Reader, subj *bufio.Scanner, onmiss MissmatchFunc) (err error) {
+func (cmpr *Compare) cmpr(ref *bufio.Reader, subj *bufio.Scanner, onmiss MismatchFunc) (err error) {
 	cmpr.rline = 0
 	cmpr.sline = 0
 	cmpr.igls = nil
@@ -150,17 +164,17 @@ SCAN_NEXT_LINE:
 			if onmiss(cmpr.sline, sline, cmpr.currentRefs()) {
 				break SCAN_NEXT_LINE
 			}
-		case cmpr.OnMissmatch != nil:
-			if cmpr.OnMissmatch(cmpr.sline, sline, cmpr.currentRefs()) {
+		case cmpr.OnMismatch != nil:
+			if cmpr.OnMismatch(cmpr.sline, sline, cmpr.currentRefs()) {
 				break SCAN_NEXT_LINE
 			}
 		}
-		if cmpr.MissmatchLimit > 0 && misses >= cmpr.MissmatchLimit {
+		if cmpr.MismatchLimit > 0 && misses >= cmpr.MismatchLimit {
 			break SCAN_NEXT_LINE
 		}
 	}
 	if misses > 0 {
-		return MissmatchCount(misses)
+		return MismatchCount(misses)
 	}
 	return nil
 }

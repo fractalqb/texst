@@ -2,9 +2,10 @@
 
 Package texst checks text files against a reference text
 specifications. The simplest reference text would be the verbatim text
-prefixed with a 'reference text' line tag, e.g. "> ". This would only
-match exactly the verbatim text. To do more complex matching one can
-add other line types to the reference text specification.
+with each line prefixed with a 'reference text' line tag, e.g. ">
+". This would only match exactly the verbatim text. To do more complex
+matching one can add other line types to the reference text
+specification.
 
 Line types are recognised by the rune in the first column of each line
 in the reference text specification. There are line types that serve
