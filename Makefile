@@ -1,6 +1,6 @@
 GOSRC:=$(shell find . -name '*.go')
 
-all: coverage.html version.go
+all: coverage.html
 
 # → https://blog.golang.org/cover
 cover: coverage.html
@@ -12,5 +12,3 @@ coverage.out: $(GOSRC)
 	go test -coverprofile=$@ ./... || true
 #	go test -covermode=count -coverprofile=$@ || true
 
-version.go: VERSION
-	go generate

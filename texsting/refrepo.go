@@ -38,7 +38,7 @@ func (dm missDesc) write(ln int, l string, rln []*texst.RefLine) bool {
 	dm.t.Errorf("%s mismatch line %d [%s]", dm.ref, ln, l)
 	for _, r := range rln {
 		if r != nil {
-			dm.t.Errorf("- ref '%c' [%s]", r.IGroup(), r.Text())
+			dm.t.Errorf("- ref line %d igroup '%c' [%s]", r.Line(), r.IGroup(), r.Text())
 		}
 	}
 	return false

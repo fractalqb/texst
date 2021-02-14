@@ -60,6 +60,8 @@ type Compare struct {
 	gsegs  string
 }
 
+// MismatchCount is the error used to report the total number of mismatches
+// detected during a Compare run.
 type MismatchCount int
 
 func (mc MismatchCount) Error() string {

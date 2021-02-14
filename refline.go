@@ -75,10 +75,13 @@ func newRefLine() *RefLine {
 	return res
 }
 
-// IGroup returns the name of the line's interleaving group
+// Line returns the line number in the refrecence text specification.
+func (rl *RefLine) Line() int { return rl.srcLn + 1 }
+
+// IGroup returns the name of the line's interleaving group.
 func (rl *RefLine) IGroup() rune { return rl.igroup }
 
-// Text returns the verbatim reference text
+// Text returns the verbatim reference text.
 func (rl *RefLine) Text() string { return rl.text }
 
 func (rl *RefLine) addSegment(name rune, mode byte, start, end int) {
