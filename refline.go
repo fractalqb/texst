@@ -15,28 +15,73 @@ import (
 const (
 	// The matching part of the subject must have the same length as the
 	// reference line segment.
-	ArgSegExact = '='
+	ArgMaskExact = '='
 	// The matching part of the subject can be of any length, even zero.
-	ArgSegOpt = '*'
+	ArgMaskOpt = '*'
 	// The matching part of the subject can be of any length greater than zero.
-	ArgSegVar = '+'
+	ArgMaskVar = '+'
 )
 
-type segment struct {
+type matchMode byte
+
+func parseMatchMode(c byte) (matchMode, error) {
+	switch c {
+	case ArgMaskExact, ArgMaskOpt, ArgMaskVar:
+		return matchMode(c), nil
+	}
+	return 0, fmt.Errorf("invalid match mode '%c'", c)
+}
+
+func (mm matchMode) locate(subj, refseg string, start int) int {
+	switch mm {
+	case ArgMaskExact:
+		if len(subj) < start {
+			return -1
+		}
+		if strings.HasPrefix(subj[start:], refseg) {
+			return 0
+		}
+		return -1
+	case ArgMaskOpt:
+		if len(subj) < start {
+			return -1
+		}
+		pos := strings.Index(subj[start:], refseg)
+		if pos < 0 {
+			return -1
+		}
+		return pos
+	case ArgMaskVar:
+		start++
+		if len(subj) < start {
+			return -1
+		}
+		pos := strings.Index(subj[start:], refseg)
+		if pos < 0 {
+			return -1
+		}
+		return pos + 1
+	}
+	panic(fmt.Errorf("unknown match mode '%c'", mm))
+}
+
+type mask struct {
 	name             rune
 	start, end       int
 	refStart, refEnd int
-	mode             byte
+	mode             matchMode
 }
 
-func (s *segment) len() int { return s.end - s.start }
+func (s *mask) len() int { return s.end - s.start }
 
-func (s *segment) empty() bool { return s.end <= s.start }
+func (s *mask) empty() bool { return s.end <= s.start }
 
-func (s *segment) sub(m *segment) (split *segment) {
+// sub removes the runes covered by mask m from the mask s. If m is in the mid
+// of s, split will be the rightmost remaining part opf s.
+func (s *mask) sub(m *mask) (split *mask) {
 	if s.start < m.start {
 		if s.end > m.end {
-			split = &segment{
+			split = &mask{
 				name:  s.name,
 				start: m.end, end: s.end,
 				refStart: m.refEnd, refEnd: s.refEnd,
@@ -65,7 +110,7 @@ func (s *segment) sub(m *segment) (split *segment) {
 type RefLine struct {
 	igroup   rune
 	text     string
-	segs     []segment
+	masks    []mask
 	srcLn    int
 	islsNext *RefLine
 }
@@ -84,133 +129,186 @@ func (rl *RefLine) IGroup() rune { return rl.igroup }
 // Text returns the verbatim reference text.
 func (rl *RefLine) Text() string { return rl.text }
 
-func (rl *RefLine) addSegment(name rune, mode byte, start, end int) {
-	seg := segment{
+func (rl *RefLine) addMask(name rune, mode matchMode, start, end int) {
+	newmask := mask{
 		name:  name,
 		mode:  mode,
 		start: start, end: end,
 		refStart: utf8Start(rl.text, start),
 	}
-	seg.refEnd = seg.refStart + utf8Start(rl.text[seg.refStart:], end-start)
-	if len(rl.segs) == 0 {
-		rl.segs = []segment{seg}
+	newmask.refEnd = newmask.refStart + utf8Start(rl.text[newmask.refStart:], end-start)
+	if len(rl.masks) == 0 {
+		rl.masks = []mask{newmask}
 		return
 	}
-	var nsegs []segment
-	inseg := true
-	for i := range rl.segs {
-		rseg := &rl.segs[i]
-		before := rseg.start < seg.start
-		split := rseg.sub(&seg)
-		if inseg {
+	var newmasks []mask
+	insmask := true
+	for i := range rl.masks {
+		oldmask := &rl.masks[i]
+		before := oldmask.start < newmask.start
+		split := oldmask.sub(&newmask)
+		if insmask {
 			if before {
-				if !rseg.empty() {
-					nsegs = append(nsegs, *rseg)
+				if !oldmask.empty() {
+					newmasks = append(newmasks, *oldmask)
 				}
 				if split != nil {
-					nsegs = append(nsegs, seg, *split)
-					inseg = false
+					newmasks = append(newmasks, newmask, *split)
+					insmask = false
 				}
 			} else {
-				nsegs = append(nsegs, seg)
-				inseg = false
-				if !rseg.empty() {
-					nsegs = append(nsegs, *rseg)
+				newmasks = append(newmasks, newmask)
+				insmask = false
+				if !oldmask.empty() {
+					newmasks = append(newmasks, *oldmask)
 				}
 			}
-		} else if !rseg.empty() {
-			nsegs = append(nsegs, *rseg)
+		} else if !oldmask.empty() {
+			newmasks = append(newmasks, *oldmask)
 		}
 	}
-	if inseg {
-		nsegs = append(nsegs, seg)
+	if insmask {
+		newmasks = append(newmasks, newmask)
 	}
-	rl.segs = nsegs
+	rl.masks = newmasks
 }
 
-func (rl *RefLine) matches(subj string) bool {
-	if len(rl.segs) == 0 {
-		return rl.text == subj
-	}
-	return rl.match(0, subj, true)
-}
-
-func utf8Start(s string, runeStart int) (res int) {
-	for runeStart > 0 {
+func utf8Start(s string, toRune int) (res int) {
+	for toRune > 0 {
 		_, rsz := utf8.DecodeRuneInString(s)
+		s = s[rsz:]
 		res += rsz
-		runeStart--
+		toRune--
 	}
 	return res
 }
 
-func (rl *RefLine) preSegPart(s int) string {
-	switch {
-	case s >= len(rl.segs):
-		seg := &rl.segs[len(rl.segs)-1]
-		return rl.text[seg.refEnd:]
-	case s == 0:
-		return rl.text[:rl.segs[0].refStart]
-	}
-	seg0 := &rl.segs[s-1]
-	seg1 := &rl.segs[s]
-	return rl.text[seg0.refEnd:seg1.refStart]
-}
-
-// backtracking because fix parts can be in many positions with variable segments
-// TODO could sequence aligning be better (eliminate recurion to save stack?)
-func (rl *RefLine) match(preSeg int, subj string, fix bool) bool {
-	refstr := rl.preSegPart(preSeg)
-	if preSeg >= len(rl.segs) {
-		if fix {
-			return refstr == subj
+func (rl *RefLine) matches(sline string) (err error) {
+	if len(rl.masks) == 0 {
+		if rl.text == sline {
+			return nil
 		}
-		return strings.HasSuffix(subj, refstr)
+		return errors.New("verbatim line mismatch")
 	}
-	seg := &rl.segs[preSeg]
-	afterSeg := func(subj string) bool {
-		switch seg.mode {
-		case ArgSegExact:
-			sl := seg.len()
-			if sl > len(subj) {
-				return false
-			}
-			return rl.match(preSeg+1, subj[sl:], true)
-		case ArgSegOpt:
-			return rl.match(preSeg+1, subj, false)
-		case ArgSegVar:
-			if subj == "" {
-				return false
-			}
-			return rl.match(preSeg+1, subj[1:], false)
+	if sline, err = rl.matchPrefix(sline); err != nil {
+		return err
+	}
+	type subjmatch struct{ start, end int }
+	midx := 0
+	smsegs := make([]subjmatch, len(rl.masks))
+	smsegs[0] = subjmatch{start: 0, end: -1}
+	midxmax := -1
+	backtrack := func(msg, reftxt string, pos int) {
+		if err == nil || midx > midxmax {
+			midxmax = midx
+			err = fmt.Errorf(msg, reftxt, pos)
 		}
-		panic("unreachable code")
-	}
-	if refstr == "" {
-		return afterSeg(subj)
-	}
-	if fix {
-		if !strings.HasPrefix(subj, refstr) {
-			return false
-		}
-		return afterSeg(subj[len(refstr):])
+		midx--
 	}
 	for {
-		refpos := strings.Index(subj, refstr)
-		if refpos < 0 {
-			return false
-		}
-		if afterSeg(subj[refpos+len(refstr):]) {
-			return true
-		}
-		subj = subj[refpos+1:]
-		if len(subj) < len(refstr) {
-			return false
+		sseg := &smsegs[midx]
+		mask := &rl.masks[midx]
+		if sseg.end < 0 { // not backtracking
+			switch mask.mode {
+			case ArgMaskExact:
+				sseg.end = sseg.start + utf8Start(sline, mask.len())
+				reftxt, final := rl.postMaskSeg(midx)
+				if mask.mode.locate(sline, reftxt, sseg.end) >= 0 {
+					if final {
+						return nil
+					} else {
+						midx++
+						smsegs[midx] = subjmatch{
+							start: sseg.end + len(reftxt),
+							end:   -1,
+						}
+					}
+				} else {
+					backtrack("cannot find ref text '%s' at %d", reftxt, sseg.end)
+					if midx < 0 {
+						return err
+					}
+				}
+			case ArgMaskOpt, ArgMaskVar:
+				reftxt, final := rl.postMaskSeg(midx)
+				if pos := mask.mode.locate(sline, reftxt, sseg.start); pos >= 0 {
+					sseg.end = sseg.start + pos
+					if final {
+						return nil
+					} else {
+						midx++
+						smsegs[midx] = subjmatch{
+							start: sseg.end + len(reftxt),
+							end:   -1,
+						}
+					}
+				} else {
+					backtrack("cannot find ref text '%s' after %d", reftxt, sseg.start)
+					if midx < 0 {
+						return err
+					}
+				}
+			default:
+				panic(fmt.Errorf("unknown mask mode '%c", mask.mode))
+			}
+		} else { // backtracking
+			switch mask.mode {
+			case ArgMaskExact:
+				reftxt, _ := rl.postMaskSeg(midx)
+				return fmt.Errorf("match fails after reference text '%s'", reftxt)
+			case ArgMaskOpt, ArgMaskVar:
+				reftxt, final := rl.postMaskSeg(midx)
+				pos := matchMode(ArgMaskVar).locate(sline, reftxt, sseg.end)
+				if pos >= 0 {
+					sseg.end += pos
+					if final {
+						return nil
+					} else {
+						midx++
+						smsegs[midx] = subjmatch{
+							start: sseg.end + len(reftxt),
+							end:   -1,
+						}
+					}
+				} else {
+					backtrack("cannot find ref text '%s' after %d", reftxt, sseg.end)
+					if midx < 0 {
+						return err
+					}
+				}
+			default:
+				panic(fmt.Errorf("unknown mask mode '%c", mask.mode))
+			}
 		}
 	}
 }
 
-func (rl *RefLine) read(rd *bufio.Reader, gsegs string, lno *int) error {
+func (rl *RefLine) matchPrefix(sline string) (string, error) {
+	mask := &rl.masks[0]
+	if mask.refStart == 0 {
+		return sline, nil
+	}
+	if len(sline) < mask.refStart {
+		return sline, errors.New(
+			"subject line is shorter than initial reference segment",
+		)
+	}
+	if sline[:mask.refStart] != rl.text[:mask.refStart] {
+		return sline, errors.New("mismatch in initial reference segment")
+	}
+	return sline[mask.refStart:], nil
+}
+
+func (rl *RefLine) postMaskSeg(midx int) (seg string, final bool) {
+	mask := &rl.masks[midx]
+	if midx+1 < len(rl.masks) {
+		next := &rl.masks[midx+1]
+		return rl.text[mask.refEnd:next.refStart], false
+	}
+	return rl.text[mask.refEnd:], true
+}
+
+func (rl *RefLine) read(rd *bufio.Reader, gmasks string, lno *int) error {
 	rl.srcLn = *lno
 	line, err := readLine(rd, lno)
 	switch {
@@ -224,9 +322,13 @@ func (rl *RefLine) read(rd *bufio.Reader, gsegs string, lno *int) error {
 		}
 		rl.igroup = igroup
 		rl.text = line[tail:]
-		rl.segs = nil
-		if len(gsegs) > 2 {
-			rl.lineSegs(gsegs[2:], gsegs[1])
+		rl.masks = nil
+		if len(gmasks) > 2 {
+			mode, err := parseMatchMode(gmasks[1])
+			if err != nil {
+				return err
+			}
+			rl.masksPattern(gmasks[2:], mode)
 		}
 		return nil
 	case err != nil:
@@ -241,28 +343,32 @@ func (rl *RefLine) read(rd *bufio.Reader, gsegs string, lno *int) error {
 	}
 	rl.igroup = igroup
 	rl.text = line[tail:]
-	rl.segs = nil
-	if len(gsegs) > 2 {
-		rl.lineSegs(gsegs[2:], gsegs[1])
+	rl.masks = nil
+	if len(gmasks) > 2 {
+		mode, err := parseMatchMode(gmasks[1])
+		if err != nil {
+			return err
+		}
+		rl.masksPattern(gmasks[2:], mode)
 	}
 	err = eachTagLine(rd, lno, tags(TagRefArgs), func(line string) error {
 		if len(line) < 2 {
 			return errors.New("syntax error: incomplete args line")
 		}
-		switch line[1] {
-		case ArgSegExact, ArgSegOpt, ArgSegVar:
-			err = rl.lineSegs(line[2:], line[1])
-		default:
-			err = fmt.Errorf("invalid args tag '%c'", line[1])
+		if mode, err := parseMatchMode(line[1]); err != nil {
+			return err
+		} else {
+			// currently there are no other args line tags
+			return rl.masksPattern(line[2:], mode)
 		}
-		return err
+		return nil
 	})
 	return err
 }
 
-func (rl *RefLine) lineSegs(pattern string, mode byte) (err error) {
+func (rl *RefLine) masksPattern(pattern string, mode matchMode) (err error) {
 	if pattern == "" {
-		return errors.New("empty line segments pattern")
+		return errors.New("empty line masks pattern")
 	}
 	var (
 		cStart = -1
@@ -271,20 +377,20 @@ func (rl *RefLine) lineSegs(pattern string, mode byte) (err error) {
 	for i, r := range pattern {
 		if r == ' ' {
 			if cName != ' ' {
-				rl.addSegment(cName, mode, cStart, i)
+				rl.addMask(cName, mode, cStart, i)
 				cStart = -1
 				cName = ' '
 			}
 		} else if r != cName {
 			if cName != ' ' {
-				rl.addSegment(cName, mode, cStart, i)
+				rl.addMask(cName, mode, cStart, i)
 			}
 			cStart = i
 			cName = r
 		}
 	}
 	if cName != ' ' {
-		rl.addSegment(cName, mode, cStart, len(pattern))
+		rl.addMask(cName, mode, cStart, len(pattern))
 	}
 	return nil
 }

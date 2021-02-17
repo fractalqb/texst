@@ -2,7 +2,6 @@ package texst
 
 import (
 	"bufio"
-	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -15,8 +14,8 @@ var _ islist.Node = (*RefLine)(nil)
 func TestSegment_sub(t *testing.T) {
 	testCase := func(s, e, exps, expe, splits, splite int) func(*testing.T) {
 		return func(t *testing.T) {
-			seg := segment{start: 2, end: 5}
-			split := seg.sub(&segment{start: s, end: e})
+			seg := mask{start: 2, end: 5}
+			split := seg.sub(&mask{start: s, end: e})
 			if seg.start != exps {
 				t.Errorf("start: expect %d / got %d", exps, seg.start)
 			}
@@ -55,21 +54,21 @@ func TestSegment_sub(t *testing.T) {
 
 func TestRefLine_lineSegs(t *testing.T) {
 	var rl RefLine
-	rl.lineSegs(" xy xx  zzzz", ArgSegExact)
-	rl.lineSegs("a  bbaa  cc", ArgSegExact)
-	expect := []segment{
-		{name: 'a', start: 0, end: 1, mode: ArgSegExact},
-		{name: 'x', start: 1, end: 2, mode: ArgSegExact},
-		{name: 'y', start: 2, end: 3, mode: ArgSegExact},
-		{name: 'b', start: 3, end: 5, mode: ArgSegExact},
-		{name: 'a', start: 5, end: 7, mode: ArgSegExact},
-		{name: 'z', start: 8, end: 9, mode: ArgSegExact},
-		{name: 'c', start: 9, end: 11, mode: ArgSegExact},
-		{name: 'z', start: 11, end: 12, mode: ArgSegExact},
+	rl.masksPattern(" xy xx  zzzz", ArgMaskExact)
+	rl.masksPattern("a  bbaa  cc", ArgMaskExact)
+	expect := []mask{
+		{name: 'a', start: 0, end: 1, mode: ArgMaskExact},
+		{name: 'x', start: 1, end: 2, mode: ArgMaskExact},
+		{name: 'y', start: 2, end: 3, mode: ArgMaskExact},
+		{name: 'b', start: 3, end: 5, mode: ArgMaskExact},
+		{name: 'a', start: 5, end: 7, mode: ArgMaskExact},
+		{name: 'z', start: 8, end: 9, mode: ArgMaskExact},
+		{name: 'c', start: 9, end: 11, mode: ArgMaskExact},
+		{name: 'z', start: 11, end: 12, mode: ArgMaskExact},
 	}
-	eq := reflect.DeepEqual(rl.segs, expect)
+	eq := reflect.DeepEqual(rl.masks, expect)
 	if !eq {
-		t.Fatalf("wrong line segments:\n%+v\n%+v", expect, rl.segs)
+		t.Fatalf("wrong line segments:\n%+v\n%+v", expect, rl.masks)
 	}
 }
 
@@ -149,35 +148,220 @@ func TestRefLine_Read(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
-		expect := []segment{
+		expect := []mask{
 			{
 				name:  'x',
-				mode:  ArgSegExact,
+				mode:  ArgMaskExact,
 				start: 2, end: 4,
 				refStart: 2, refEnd: 4,
 			},
 			{
 				name:  'y',
-				mode:  ArgSegExact,
+				mode:  ArgMaskExact,
 				start: 13, end: 20,
 				refStart: 13, refEnd: 20,
 			},
 		}
-		if !reflect.DeepEqual(rl.segs, expect) {
-			t.Fatalf("wrong line segments:\n%+v\n%+v", expect, rl.segs)
+		if !reflect.DeepEqual(rl.masks, expect) {
+			t.Fatalf("wrong line segments:\n%+v\n%+v", expect, rl.masks)
 		}
 	})
 }
 
-func ExampleRefLine_preSegPart() {
-	rl := RefLine{text: "Hello, 世界!"}
-	rl.addSegment(' ', ArgSegExact, 2, 4)
-	rl.addSegment(' ', ArgSegExact, 7, 9)
-	fmt.Printf("[%s]\n", rl.preSegPart(0))
-	fmt.Printf("[%s]\n", rl.preSegPart(1))
-	fmt.Printf("[%s]\n", rl.preSegPart(2))
-	// Output:
-	// [He]
-	// [o, ]
-	// [!]
+func TestRefLine_matches(t *testing.T) {
+	testCase := func(caseName, ref, subj string, match bool) {
+		t.Run(caseName, func(t *testing.T) {
+			var lno int
+			rl := newRefLine()
+			err := rl.read(bufio.NewReader(strings.NewReader(ref)), "", &lno)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = rl.matches(subj)
+			if (err == nil) != match {
+				if match {
+					t.Errorf(`unexpected mismatch: %s
+  %s
+%s`,
+						err, subj, ref)
+				} else {
+					t.Errorf(`unexpected match:
+  %s
+%s`,
+						subj, ref)
+				}
+			} else if err != nil {
+				t.Logf("expected: %s", err)
+			}
+		})
+	}
+	testCase("verbatim match",
+		"> abcdef世界ijklmnopqrstuvwxyz",
+		"abcdef世界ijklmnopqrstuvwxyz",
+		true,
+	)
+
+	testCase("seg exact prefix match", `#
+> abcdef世界ijklmnopqrstuvwxyz
+ =---`,
+		"XXXdef世界ijklmnopqrstuvwxyz",
+		true,
+	)
+	testCase("seg exact prefix mismatch", `#
+> abcdef世界ijklmnopqrstuvwxyz
+ =---`,
+		"abcXef世界ijklmnopqrstuvwxyz",
+		false,
+	)
+	testCase("seg exact suffix match", `#
+> abcdef世界ijklmnopqrstuvwxyz
+ =                       ---`,
+		"abcdef世界ijklmnopqrstuvwXXX",
+		true,
+	)
+	testCase("seg exact suffix mismatch", `#
+> abcdef世界ijklmnopqrstuvwxyz
+ =                       ---`,
+		"abcdef世界ijklmnopqrstuvXxyz",
+		false,
+	)
+	testCase("seg exact mid match", `#
+> abcdef世界ijklmnopqrstuvwxyz
+ =            --`,
+		"abcdef世界ijklmnopqrstuvwxyz",
+		true,
+	)
+	testCase("seg exact mid mismatch left", `#
+> abcdef世界ijklmnopqrstuvwxyz
+ =            --`,
+		"abcdef世界ijkXmnopqrstuvwxyz",
+		false,
+	)
+	testCase("seg exact mid match right", `#
+> abcdef世界ijklmnopqrstuvwxyz
+ =            --`,
+		"abcdef世界ijklmnXpqrstuvwxyz",
+		false,
+	)
+
+	testCase("seg opt prefix match", `#
+> abcdef世界ijklmnopqrstuvwxyz
+ *---`,
+		"XXXdef世界ijklmnopqrstuvwxyz",
+		true,
+	)
+	testCase("seg opt prefix mismatch", `#
+> abcdef世界ijklmnopqrstuvwxyz
+ *---`,
+		"abcXef世界ijklmnopqrstuvwxyz",
+		false,
+	)
+	testCase("seg opt suffix match", `#
+> abcdef世界ijklmnopqrstuvwxyz
+ *                       ---`,
+		"abcdef世界ijklmnopqrstuvwXXX",
+		true,
+	)
+	testCase("seg opt suffix mismatch", `#
+> abcdef世界ijklmnopqrstuvwxyz
+ *                       ---`,
+		"abcdef世界ijklmnopqrstuvXxyz",
+		false,
+	)
+	testCase("seg opt mid match", `#
+> abcdef世界ijklmnopqrstuvwxyz
+ *            --`,
+		"abcdef世界ijklmnopqrstuvwxyz",
+		true,
+	)
+	testCase("seg opt mid mismatch left", `#
+> abcdef世界ijklmnopqrstuvwxyz
+ *            --`,
+		"abcdef世界ijkXmnopqrstuvwxyz",
+		false,
+	)
+	testCase("seg opt mid mismatch right", `#
+> abcdef世界ijklmnopqrstuvwxyz
+ *            --`,
+		"abcdef世界ijklmnXpqrstuvwxyz",
+		false,
+	)
+	testCase("seg opt backtrack match", `#
+> aXXbYYc
+ * xx
+ =    yy`,
+		"a.bb..c",
+		true)
+	testCase("seg opt backtrack mismatch", `#
+> aXXbYYc
+ * xx
+ =    yy`,
+		"a.bb..C",
+		false)
+
+	testCase("seg var prefix match", `#
+> abcdef世界ijklmnopqrstuvwxyz
+ +---`,
+		"XXXdef世界ijklmnopqrstuvwxyz",
+		true,
+	)
+	testCase("seg var prefix mismatch", `#
+> abcdef世界ijklmnopqrstuvwxyz
+ +---`,
+		"abcXef世界ijklmnopqrstuvwxyz",
+		false,
+	)
+	testCase("seg var suffix match", `#
+> abcdef世界ijklmnopqrstuvwxyz
+ +                       ---`,
+		"abcdef世界ijklmnopqrstuvwXXX",
+		true,
+	)
+	testCase("seg var suffix mismatch", `#
+> abcdef世界ijklmnopqrstuvwxyz
+ +                       ---`,
+		"abcdef世界ijklmnopqrstuvXxyz",
+		false,
+	)
+	testCase("seg var mid match", `#
+> abcdef世界ijklmnopqrstuvwxyz
+ +            --`,
+		"abcdef世界ijklmnopqrstuvwxyz",
+		true,
+	)
+	testCase("seg var mid mismatch left", `#
+> abcdef世界ijklmnopqrstuvwxyz
+ +            --`,
+		"abcdef世界ijkXmnopqrstuvwxyz",
+		false,
+	)
+	testCase("seg var mid mismatch right", `#
+> abcdef世界ijklmnopqrstuvwxyz
+ +            --`,
+		"abcdef世界ijklmnXpqrstuvwxyz",
+		false,
+	)
+	testCase("seg var backtrack match", `#
+> aXXbYYc
+ + xx
+ =    yy`,
+		"a.bb..c",
+		true)
+	testCase("seg var backtrack mismatch", `#
+> aXXbYYc
+ + xx
+ =    yy`,
+		"a.bb..C",
+		false)
+
+	testCase("seg opt empty match", `#
+> abcdefg
+ *  ---`,
+		"abfg",
+		true)
+	testCase("seg var empty mismatch", `#
+> abcdefg
+ +  ---`,
+		"abfg",
+		false)
 }

@@ -2,32 +2,31 @@
 
 Package texst checks text files against a reference text
 specifications. The simplest reference text would be the verbatim text
-with each line prefixed with a 'reference text' line tag, e.g. ">
-". This would only match exactly the verbatim text. To do more complex
-matching one can add other line types to the reference text
-specification.
+with each line prefixed with a 'reference text' line tag, e.g. "> ".
+This would only match exactly the verbatim text. To do more complex matching
+one can add other line types to the reference text specification.
 
 Line types are recognised by the rune in the first column of each line
 in the reference text specification. There are line types that serve
 different purposes.
 
 Most often one might need to mark parts of a reference line that do
-not need to match exactly to the checked “subject” text. texst does
-not embed markers into the reference text line because it would need
-some very sophisticated escaping to make arbitrary reference text
-feasible.  Instead each reference text line may be followed by
-argument lines, that modify the way the reference text is matched
-against the checked text. Argument lines start with ' ' (U+0020). Some
-types of argument lines are used to mark segments of the reference
-text to not match exactly to the subject text:
+not need to match exactly to the checked “subject” text. We will call
+these parts 'masks'. texst does not embed markers into the reference
+text line to identify masks because it would need some very
+sophisticated escaping to make arbitrary reference text feasible.
+Instead each reference text line may be followed by argument lines,
+that define masks and the way the reference text is matched against
+them. Argument lines start with ' ' (U+0020). There are different
+types of argument lines, e.g. this one starting with " =":
 
  > This is some reference text content
   =        xxxx
 
 The above example says that the four runes above the non-space part of
-the argument line, i.e. "some", are not compared to the checked
-text. The '=' identifies the specific type of argument line (see Types
-of argument lines). So the text
+the argument line, i.e. "some", are not compared to the subject
+text. The second column, here '=', identifies the specific type of
+argument line, for details see Types of argument lines. The text
 
  This is blue reference text content
 
@@ -52,7 +51,7 @@ to mark each timestamp in the reference text line:
  Jun 27 18:58:11.125 DEBUG [thread1] clearing maps
  …
 
-To solve this one can set a global segment line after the preamble and
+To solve this one can set a global mask line after the preamble and
 between reference text specifications. For our example one would
 write:
 
@@ -67,8 +66,9 @@ different threads. I.e. one cannot rely on the order of lines in the
 reference text specification. But at least the lines from one thread
 shall be in exactly the same order as given in the reference.
 
-We declare two “interleaving groups” '1' and '2' in the preamble and
-mark the reference text lines to be in the specific group:
+For this we declare two “interleaving groups” '1' and '2' in the
+preamble and mark the reference text lines to be in the specific
+group:
 
  \%12
  *=ttt tt tt tt tt ttt

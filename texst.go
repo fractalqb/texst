@@ -155,7 +155,7 @@ SCAN_NEXT_LINE:
 			if err != nil {
 				return RefError{Line: cmpr.rline, err: err}
 			}
-			if rl != nil && rl.matches(sline) {
+			if rl != nil && rl.matches(sline) == nil {
 				cmpr.dropRefLine(rl)
 				continue SCAN_NEXT_LINE
 			}
