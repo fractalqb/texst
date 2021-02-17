@@ -243,6 +243,21 @@ func TestRefLine_matches(t *testing.T) {
 		"abcdef世界ijklmnXpqrstuvwxyz",
 		false,
 	)
+	testCase("seg exact two match", `#
+> abcdef世界ijklmnopqrstuvwxyz
+ =  xx             yy`,
+		"ab..ef世界ijklmnopq..tuvwxyz",
+		true)
+	testCase("seg exact two mismatch 1", `#
+> abcdef世界ijklmnopqrstuvwxyz
+ =  xx             yy`,
+		"ab...f世界ijklmnopq..tuvwxyz",
+		false)
+	testCase("seg exact two mismatch 2", `#
+> abcdef世界ijklmnopqrstuvwxyz
+ =  xx             yy`,
+		"ab..ef世界ijklmnop...tuvwxyz",
+		false)
 
 	testCase("seg opt prefix match", `#
 > abcdef世界ijklmnopqrstuvwxyz
@@ -363,5 +378,18 @@ func TestRefLine_matches(t *testing.T) {
 > abcdefg
  +  ---`,
 		"abfg",
+		false)
+
+	testCase("regex match", `#
+> abcde
+ =  xx
+ ~x[1] \d+`,
+		"ab42e",
+		true)
+	testCase("regex mismatch", `#
+> abcde
+ = xxx
+ ~x ^\d+$`,
+		"ab42e",
 		false)
 }

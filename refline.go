@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -13,13 +15,15 @@ import (
 
 // Types of argument lines
 const (
-	// The matching part of the subject must have the same length as the
-	// reference line segment.
+	// The masked part of the subject must have the same length as the reference
+	// line segment.
 	ArgMaskExact = '='
-	// The matching part of the subject can be of any length, even zero.
+	// The masked part of the subject can be of any length, even zero.
 	ArgMaskOpt = '*'
-	// The matching part of the subject can be of any length greater than zero.
+	// The masked part of the subject can be of any length greater than zero.
 	ArgMaskVar = '+'
+	// Match masked parts against a regular expression. TODO syntax of the line…
+	ArgRegexp = '~'
 )
 
 type matchMode byte
@@ -70,37 +74,46 @@ type mask struct {
 	start, end       int
 	refStart, refEnd int
 	mode             matchMode
+	checker          func(ref, subj string) error
 }
 
-func (s *mask) len() int { return s.end - s.start }
+func (m *mask) len() int { return m.end - m.start }
 
-func (s *mask) empty() bool { return s.end <= s.start }
+func (m *mask) empty() bool { return m.end <= m.start }
+
+func (m *mask) check(rline, sseg string) error {
+	if m.checker == nil {
+		return nil
+	}
+	rseg := rline[m.refStart:m.refEnd]
+	return m.checker(rseg, sseg)
+}
 
 // sub removes the runes covered by mask m from the mask s. If m is in the mid
 // of s, split will be the rightmost remaining part opf s.
-func (s *mask) sub(m *mask) (split *mask) {
-	if s.start < m.start {
-		if s.end > m.end {
+func (m *mask) sub(s *mask) (split *mask) {
+	if m.start < s.start {
+		if m.end > s.end {
 			split = &mask{
-				name:  s.name,
-				start: m.end, end: s.end,
-				refStart: m.refEnd, refEnd: s.refEnd,
-				mode: s.mode,
+				name:  m.name,
+				start: s.end, end: m.end,
+				refStart: s.refEnd, refEnd: m.refEnd,
+				mode: m.mode,
 			}
-			s.end = m.start
-			s.refEnd = m.refStart
+			m.end = s.start
+			m.refEnd = s.refStart
 			return split
 		}
-		if s.end > m.start {
-			s.end = m.start
-			s.refEnd = m.refStart
+		if m.end > s.start {
+			m.end = s.start
+			m.refEnd = s.refStart
 		}
-	} else if s.end <= m.end {
-		s.end = s.start
-		s.refEnd = s.refStart
-	} else if m.end > s.start {
-		s.start = m.end
-		s.refStart = m.refEnd
+	} else if m.end <= s.end {
+		m.end = m.start
+		m.refEnd = m.refStart
+	} else if s.end > m.start {
+		m.start = s.end
+		m.refStart = s.refEnd
 	}
 	return nil
 }
@@ -183,6 +196,12 @@ func utf8Start(s string, toRune int) (res int) {
 	return res
 }
 
+type subjmatch struct{ start, end int }
+
+func (sm subjmatch) of(line string) string {
+	return line[sm.start:sm.end]
+}
+
 func (rl *RefLine) matches(sline string) (err error) {
 	if len(rl.masks) == 0 {
 		if rl.text == sline {
@@ -190,22 +209,25 @@ func (rl *RefLine) matches(sline string) (err error) {
 		}
 		return errors.New("verbatim line mismatch")
 	}
-	if sline, err = rl.matchPrefix(sline); err != nil {
-		return err
-	}
-	type subjmatch struct{ start, end int }
-	midx := 0
 	smsegs := make([]subjmatch, len(rl.masks))
-	smsegs[0] = subjmatch{start: 0, end: -1}
+	if pflen, err := rl.matchPrefix(sline); err != nil {
+		return err
+	} else {
+		smsegs[0] = subjmatch{start: pflen, end: -1}
+	}
+	midx := 0
 	midxmax := -1
-	backtrack := func(msg, reftxt string, pos int) {
+	backtrack := func(format string, args ...interface{}) {
 		if err == nil || midx > midxmax {
 			midxmax = midx
-			err = fmt.Errorf(msg, reftxt, pos)
+			err = fmt.Errorf(format, args...)
 		}
 		midx--
 	}
 	for {
+		if midx < 0 {
+			return err
+		}
 		sseg := &smsegs[midx]
 		mask := &rl.masks[midx]
 		if sseg.end < 0 { // not backtracking
@@ -213,6 +235,10 @@ func (rl *RefLine) matches(sline string) (err error) {
 			case ArgMaskExact:
 				sseg.end = sseg.start + utf8Start(sline, mask.len())
 				reftxt, final := rl.postMaskSeg(midx)
+				if err = mask.check(rl.text, sseg.of(sline)); err != nil {
+					backtrack("masked segment '%s': %s", sseg.of(sline), err)
+					continue
+				}
 				if mask.mode.locate(sline, reftxt, sseg.end) >= 0 {
 					if final {
 						return nil
@@ -225,14 +251,15 @@ func (rl *RefLine) matches(sline string) (err error) {
 					}
 				} else {
 					backtrack("cannot find ref text '%s' at %d", reftxt, sseg.end)
-					if midx < 0 {
-						return err
-					}
 				}
 			case ArgMaskOpt, ArgMaskVar:
 				reftxt, final := rl.postMaskSeg(midx)
 				if pos := mask.mode.locate(sline, reftxt, sseg.start); pos >= 0 {
 					sseg.end = sseg.start + pos
+					if err = mask.check(rl.text, sseg.of(sline)); err != nil {
+						backtrack("masked segment '%s': %s", sseg.of(sline), err)
+						continue
+					}
 					if final {
 						return nil
 					} else {
@@ -244,9 +271,6 @@ func (rl *RefLine) matches(sline string) (err error) {
 					}
 				} else {
 					backtrack("cannot find ref text '%s' after %d", reftxt, sseg.start)
-					if midx < 0 {
-						return err
-					}
 				}
 			default:
 				panic(fmt.Errorf("unknown mask mode '%c", mask.mode))
@@ -261,6 +285,10 @@ func (rl *RefLine) matches(sline string) (err error) {
 				pos := matchMode(ArgMaskVar).locate(sline, reftxt, sseg.end)
 				if pos >= 0 {
 					sseg.end += pos
+					if err = mask.check(rl.text, sseg.of(sline)); err != nil {
+						backtrack("masked segment '%s': %s", sseg.of(sline), err)
+						continue
+					}
 					if final {
 						return nil
 					} else {
@@ -272,9 +300,6 @@ func (rl *RefLine) matches(sline string) (err error) {
 					}
 				} else {
 					backtrack("cannot find ref text '%s' after %d", reftxt, sseg.end)
-					if midx < 0 {
-						return err
-					}
 				}
 			default:
 				panic(fmt.Errorf("unknown mask mode '%c", mask.mode))
@@ -283,20 +308,20 @@ func (rl *RefLine) matches(sline string) (err error) {
 	}
 }
 
-func (rl *RefLine) matchPrefix(sline string) (string, error) {
+func (rl *RefLine) matchPrefix(sline string) (int, error) {
 	mask := &rl.masks[0]
 	if mask.refStart == 0 {
-		return sline, nil
+		return 0, nil
 	}
 	if len(sline) < mask.refStart {
-		return sline, errors.New(
+		return 0, errors.New(
 			"subject line is shorter than initial reference segment",
 		)
 	}
 	if sline[:mask.refStart] != rl.text[:mask.refStart] {
-		return sline, errors.New("mismatch in initial reference segment")
+		return 0, errors.New("mismatch in initial reference segment")
 	}
-	return sline[mask.refStart:], nil
+	return mask.refStart, nil
 }
 
 func (rl *RefLine) postMaskSeg(midx int) (seg string, final bool) {
@@ -307,6 +332,8 @@ func (rl *RefLine) postMaskSeg(midx int) (seg string, final bool) {
 	}
 	return rl.text[mask.refEnd:], true
 }
+
+var argRegexp = regexp.MustCompile(`^(.)(\[\d+\])? (.+)$`)
 
 func (rl *RefLine) read(rd *bufio.Reader, gmasks string, lno *int) error {
 	rl.srcLn = *lno
@@ -355,15 +382,53 @@ func (rl *RefLine) read(rd *bufio.Reader, gmasks string, lno *int) error {
 		if len(line) < 2 {
 			return errors.New("syntax error: incomplete args line")
 		}
-		if mode, err := parseMatchMode(line[1]); err != nil {
-			return err
-		} else {
-			// currently there are no other args line tags
+		if mode, err := parseMatchMode(line[1]); err == nil {
 			return rl.masksPattern(line[2:], mode)
 		}
-		return nil
+		switch line[1] {
+		case ArgRegexp:
+			return rl.regexpArg(line[2:])
+		default:
+			return fmt.Errorf("unknown argument line '%c'", line[1])
+		}
 	})
 	return err
+}
+
+func (rl *RefLine) regexpArg(arg string) error {
+	match := argRegexp.FindStringSubmatch(arg)
+	if match == nil {
+		return errors.New("syntax error in regexp argument line")
+	}
+	name, _ := utf8.DecodeRuneInString(match[1])
+	num := 0
+	if match[2] != "" {
+		num, _ = strconv.Atoi(strings.Trim(match[2], "[]"))
+	}
+	rgx, err := regexp.Compile(match[3])
+	if err != nil {
+		return err
+	}
+	nmno, app := 0, 0
+	for i := range rl.masks {
+		m := &rl.masks[i]
+		if m.name == name {
+			nmno++
+			if num == 0 || num == nmno {
+				m.checker = func(_, s string) error {
+					if rgx.MatchString(s) {
+						return nil
+					}
+					return fmt.Errorf("regexp '%s' mismatch", match[3])
+				}
+				app++
+			}
+		}
+	}
+	if app == 0 {
+		return fmt.Errorf("no mask %s to apply regexp '%s' to", match[2], match[3])
+	}
+	return nil
 }
 
 func (rl *RefLine) masksPattern(pattern string, mode matchMode) (err error) {
