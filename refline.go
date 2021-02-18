@@ -210,11 +210,11 @@ func (rl *RefLine) matches(sline string) (err error) {
 		return errors.New("verbatim line mismatch")
 	}
 	smsegs := make([]subjmatch, len(rl.masks))
-	if pflen, err := rl.matchPrefix(sline); err != nil {
+	pflen, err := rl.matchPrefix(sline)
+	if err != nil {
 		return err
-	} else {
-		smsegs[0] = subjmatch{start: pflen, end: -1}
 	}
+	smsegs[0] = subjmatch{start: pflen, end: -1}
 	midx := 0
 	midxmax := -1
 	backtrack := func(format string, args ...interface{}) {
@@ -242,12 +242,11 @@ func (rl *RefLine) matches(sline string) (err error) {
 				if mask.mode.locate(sline, reftxt, sseg.end) >= 0 {
 					if final {
 						return nil
-					} else {
-						midx++
-						smsegs[midx] = subjmatch{
-							start: sseg.end + len(reftxt),
-							end:   -1,
-						}
+					}
+					midx++
+					smsegs[midx] = subjmatch{
+						start: sseg.end + len(reftxt),
+						end:   -1,
 					}
 				} else {
 					backtrack("cannot find ref text '%s' at %d", reftxt, sseg.end)
@@ -262,12 +261,11 @@ func (rl *RefLine) matches(sline string) (err error) {
 					}
 					if final {
 						return nil
-					} else {
-						midx++
-						smsegs[midx] = subjmatch{
-							start: sseg.end + len(reftxt),
-							end:   -1,
-						}
+					}
+					midx++
+					smsegs[midx] = subjmatch{
+						start: sseg.end + len(reftxt),
+						end:   -1,
 					}
 				} else {
 					backtrack("cannot find ref text '%s' after %d", reftxt, sseg.start)
@@ -291,12 +289,11 @@ func (rl *RefLine) matches(sline string) (err error) {
 					}
 					if final {
 						return nil
-					} else {
-						midx++
-						smsegs[midx] = subjmatch{
-							start: sseg.end + len(reftxt),
-							end:   -1,
-						}
+					}
+					midx++
+					smsegs[midx] = subjmatch{
+						start: sseg.end + len(reftxt),
+						end:   -1,
 					}
 				} else {
 					backtrack("cannot find ref text '%s' after %d", reftxt, sseg.end)
