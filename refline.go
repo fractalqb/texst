@@ -352,7 +352,10 @@ func (rl *RefLine) read(rd *bufio.Reader, gmasks string, lno *int) error {
 			if err != nil {
 				return err
 			}
-			rl.masksPattern(gmasks[2:], mode)
+			err = rl.masksPattern(gmasks[2:], mode)
+			if err != nil {
+				return err
+			}
 		}
 		return nil
 	case err != nil:
@@ -373,7 +376,10 @@ func (rl *RefLine) read(rd *bufio.Reader, gmasks string, lno *int) error {
 		if err != nil {
 			return err
 		}
-		rl.masksPattern(gmasks[2:], mode)
+		err = rl.masksPattern(gmasks[2:], mode)
+		if err != nil {
+			return err
+		}
 	}
 	err = eachTagLine(rd, lno, tags(TagRefArgs), func(line string) error {
 		if len(line) < 2 {

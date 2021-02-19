@@ -80,8 +80,12 @@ func (rr *RefRepo) TestRecord(t *testing.T, reffile string, subj io.Reader) {
 	scn := bufio.NewScanner(subj)
 	for scn.Scan() {
 		fmt.Fprintf(wr, "%c ", texst.TagRefLine)
-		wr.Write(scn.Bytes())
-		fmt.Fprintln(wr)
+		if _, err := wr.Write(scn.Bytes()); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := fmt.Fprintln(wr); err != nil {
+			t.Fatal(err)
+		}
 	}
 	t.Errorf("texst test-recorder wrote: %s", ref)
 }

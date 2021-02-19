@@ -1,8 +1,38 @@
 package texst
 
 import (
+	"fmt"
 	"testing"
 )
+
+func Example() {
+	cmpr := Compare{
+		OnMismatch: func(sn int, s string, refs []*RefLine) bool {
+			for _, ref := range refs {
+				fmt.Printf("mismatch %d/%d: '%s' / '%s'\n",
+					sn, ref.Line(),
+					s, ref.Text())
+			}
+			return false
+		},
+	}
+	err := cmpr.Strings(`\%12
+*=ttt tt tt tt tt ttt
+>1Jun 27 21:58:11.112 INFO  [thread1] create localization dir:test1/test.xCuf/l10n
+ +                                                                       xxxx
+>2Jun 27 21:58:11.113 INFO  [thread2] load state from file:test1/test.xCuf/bcplus.json
+ +                                                                    xxxx
+>1Jun 27 18:58:11.125 DEBUG [thread1] clearing maps`,
+		`Jun 27 21:58:11.112 INFO  [thread1] create localization dir:test1/test.RnD/l10n
+Jun 27 18:58:11.125 DEBUG [thread1] clearing MAPS
+Jun 27 21:58:11.113 INFO  [thread2] load state from file:test1/test.Rnd/bcplus.json`,
+		nil)
+	fmt.Println(err)
+	// Output:
+	// mismatch 2/7: 'Jun 27 18:58:11.125 DEBUG [thread1] clearing MAPS' / 'Jun 27 18:58:11.125 DEBUG [thread1] clearing maps'
+	// mismatch 2/5: 'Jun 27 18:58:11.125 DEBUG [thread1] clearing MAPS' / 'Jun 27 21:58:11.113 INFO  [thread2] load state from file:test1/test.xCuf/bcplus.json'
+	// 1 mismatch
+}
 
 func TestCompare_good(t *testing.T) {
 	noError := func(ref, subj string) func(*testing.T) {

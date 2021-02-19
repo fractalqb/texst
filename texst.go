@@ -65,6 +65,9 @@ type Compare struct {
 type MismatchCount int
 
 func (mc MismatchCount) Error() string {
+	if mc == 1 {
+		return "1 mismatch"
+	}
 	return fmt.Sprintf("%d mismatches", mc)
 }
 

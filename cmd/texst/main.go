@@ -1,3 +1,4 @@
+// A command line tool to use text tests
 package main
 
 import (
