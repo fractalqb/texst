@@ -1,4 +1,29 @@
 // Package texsting supports the use of texst in your Go tests.
+//
+// Example reads reference text from TestError.texst:
+//
+//	func TestError(t *testing.T) {
+//		resp, _ := http.Get("https://httpbin.org/get")
+//		defer resp.Body.Close()
+//		Error(t, "", resp.Body)
+//	}
+//
+// Reference Text:
+//
+//	> {
+//	>   "args": {},
+//	>   "headers": {
+//	>     "Accept-Encoding": "gzip",
+//	>     "Host": "httpbin.org",
+//	>     "User-Agent": "Go-http-client/2.0",
+//	 *                   aaaaaaaaaaaaaaaaaa
+//	>     "X-Amzn-Trace-Id": "Root=1-602f798d-1c84bdc472ff9a2d3ec50f3b"
+//	 =                             u uuuuuuuu uuuuuuuuuuuuuuuuuuuuuuuu
+//	>   },
+//	>   "origin": "10.0.0.1",
+//	 +             aa a a a
+//	>   "url": "https://httpbin.org/get"
+//	> }
 package texsting
 
 import (
@@ -13,66 +38,93 @@ import (
 	"github.com/fractalqb/texst"
 )
 
+func Error(t *testing.T, hint string, subj io.Reader) error {
+	return defaultConfig.Error(t, hint, subj)
+}
+
+func Fatal(t *testing.T, hint string, subj io.Reader) {
+	defaultConfig.Fatal(t, hint, subj)
+}
+
+func Record(t *testing.T, hint string, subj io.Reader) {
+	defaultConfig.Record(t, hint, subj)
+}
+
 type RefRepo struct {
-	Dir       string
-	Suffix    string
-	MissLimit int
+	Dir    string
+	Suffix string
 }
 
-func (rr *RefRepo) Compare(reffile string, subj io.Reader, onmiss texst.MismatchFunc) error {
-	cmpr := texst.Compare{MismatchLimit: rr.MissLimit}
-	rd, err := os.Open(reffile)
-	if err != nil {
-		return err
+const (
+	StdSuffix = ".texst"
+	NoSuffix  = "\x00"
+)
+
+func (rr RefRepo) Filename(t *testing.T, hint string) string {
+	suffix := rr.Suffix
+	switch suffix {
+	case "":
+		suffix = StdSuffix
+	case NoSuffix:
+		suffix = ""
 	}
-	defer rd.Close()
-	return cmpr.Readers(rd, subj, onmiss)
-}
-
-type missDesc struct {
-	t   *testing.T
-	ref string
-}
-
-func (dm missDesc) write(ln int, l string, rln []*texst.RefLine) bool {
-	dm.t.Errorf("%s mismatch line %d [%s]", dm.ref, ln, l)
-	for _, r := range rln {
-		if r != nil {
-			dm.t.Errorf("- ref line %d igroup '%c' [%s]", r.Line(), r.IGroup(), r.Text())
-		}
+	if hint == "" {
+		return filepath.Join(rr.Dir, t.Name()+suffix)
 	}
-	return false
+	if suffix == "" || strings.HasSuffix(hint, suffix) {
+		return filepath.Join(rr.Dir, t.Name(), hint)
+	}
+	return filepath.Join(rr.Dir, t.Name(), hint+suffix)
 }
 
-func (rr *RefRepo) TestError(t *testing.T, reffile string, subj io.Reader) error {
-	ref := rr.reffile(t, reffile)
-	err := rr.Compare(ref, subj, missDesc{t, reffile}.write)
+type Config struct {
+	RefFileName     func(t *testing.T, hint string) string
+	MismatchLimit   int
+	RecordOverwrite bool
+}
+
+var defaultConfig = Config{
+	RefFileName:     RefRepo{Dir: "."}.Filename,
+	MismatchLimit:   1,
+	RecordOverwrite: false,
+}
+
+func (cfg Config) Error(t *testing.T, hint string, subj io.Reader) error {
+	err := cfg.compare(t, hint, subj)
 	if err != nil {
 		t.Error(err)
 	}
 	return err
 }
 
-func (rr *RefRepo) TestFatal(t *testing.T, reffile string, subj io.Reader) {
-	ref := rr.reffile(t, reffile)
-	err := rr.Compare(ref, subj, missDesc{t, reffile}.write)
+func (cfg Config) Fatal(t *testing.T, hint string, subj io.Reader) {
+	err := cfg.compare(t, hint, subj)
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
-func (rr *RefRepo) TestRecord(t *testing.T, reffile string, subj io.Reader) {
-	if _, err := os.Stat(rr.Dir); err != nil {
-		t.Fatal(err)
+func (cfg *Config) compare(t *testing.T, hint string, subj io.Reader) error {
+	cmpr := &texst.Compare{
+		MismatchLimit: cfg.MismatchLimit,
+		OnMismatch:    onMismatch{t, hint}.write,
 	}
-	ref := rr.reffile(t, reffile)
-	dir := filepath.Dir(ref)
+	reffile := cfg.RefFileName(t, hint)
+	return cmpr.RefFile(reffile, subj)
+}
+
+func (cfg Config) Record(t *testing.T, hint string, subj io.Reader) {
+	reffile := cfg.RefFileName(t, hint)
+	if _, err := os.Stat(reffile); !os.IsNotExist(err) && !cfg.RecordOverwrite {
+		t.Fatalf("TestRecord: reference file '%s' already exists", reffile)
+	}
+	dir := filepath.Dir(reffile)
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		if err = os.MkdirAll(dir, 0777); err != nil {
 			t.Fatal(err)
 		}
 	}
-	wr, err := os.Create(ref)
+	wr, err := os.Create(reffile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,19 +139,20 @@ func (rr *RefRepo) TestRecord(t *testing.T, reffile string, subj io.Reader) {
 			t.Fatal(err)
 		}
 	}
-	t.Errorf("texst test-recorder wrote: %s", ref)
+	t.Errorf("texst test-recorder wrote: %s", reffile)
 }
 
-func (rr *RefRepo) reffile(t *testing.T, reffile string) string {
-	if reffile == "" {
-		var suffix = rr.Suffix
-		if suffix == "" {
-			suffix = ".texst"
+type onMismatch struct {
+	t    *testing.T
+	hint string
+}
+
+func (dm onMismatch) write(ln int, l string, rln []*texst.RefLine) bool {
+	dm.t.Errorf("%s mismatch line %d [%s]", dm.hint, ln, l)
+	for _, r := range rln {
+		if r != nil {
+			dm.t.Errorf("- ref line %d igroup '%c' [%s]", r.Line(), r.IGroup(), r.Text())
 		}
-		return filepath.Join(rr.Dir, t.Name()+suffix)
 	}
-	if rr.Suffix == "" || strings.HasSuffix(reffile, rr.Suffix) {
-		return filepath.Join(rr.Dir, t.Name(), reffile)
-	}
-	return filepath.Join(rr.Dir, t.Name(), reffile+rr.Suffix)
+	return false
 }

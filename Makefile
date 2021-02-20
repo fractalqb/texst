@@ -1,6 +1,8 @@
 GOSRC:=$(shell find . -name '*.go')
 
-all: coverage.html
+.PHONY: texst
+
+all: texst
 
 # → https://blog.golang.org/cover
 cover: coverage.html
@@ -12,3 +14,5 @@ coverage.out: $(GOSRC)
 	go test -coverprofile=$@ ./... || true
 #	go test -covermode=count -coverprofile=$@ || true
 
+texst:
+	go build ./cmd/texst

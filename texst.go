@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	"git.fractalqb.de/fractalqb/icontainer/islist"
@@ -102,7 +103,7 @@ func (e SubjError) Unwrap() error { return e.err }
 // Errors regarding read operations or syntax errors in 'ref' or 'subj' will
 // terminate the comparison immediately and be returned as RefError or
 // SubjError, depending on the source of error.
-func (cmpr *Compare) Readers(ref, subj io.Reader, onmiss MismatchFunc) error {
+func (cmpr *Compare) Readers(ref, subj io.Reader) error {
 	var rr *bufio.Reader
 	if tmp, ok := ref.(*bufio.Reader); ok {
 		rr = tmp
@@ -110,20 +111,29 @@ func (cmpr *Compare) Readers(ref, subj io.Reader, onmiss MismatchFunc) error {
 		rr = bufio.NewReader(ref)
 	}
 	sr := bufio.NewScanner(subj)
-	err := cmpr.cmpr(rr, sr, onmiss)
+	err := cmpr.cmpr(rr, sr)
 	return err
 }
 
 // Strings compares the reference text and subject text from the strings
 // 'ref' and 'subj'. For more detail read Readers documentation.
-func (cmpr *Compare) Strings(ref, subj string, onmiss MismatchFunc) error {
+func (cmpr *Compare) Strings(ref, subj string) error {
 	return cmpr.Readers(
 		strings.NewReader(ref),
 		strings.NewReader(subj),
-		onmiss)
+	)
 }
 
-func (cmpr *Compare) cmpr(ref *bufio.Reader, subj *bufio.Scanner, onmiss MismatchFunc) (err error) {
+func (cmpr *Compare) RefFile(refname string, subj io.Reader) error {
+	rd, err := os.Open(refname)
+	if err != nil {
+		return err
+	}
+	defer rd.Close()
+	return cmpr.Readers(rd, subj)
+}
+
+func (cmpr *Compare) cmpr(ref *bufio.Reader, subj *bufio.Scanner) (err error) {
 	cmpr.rline = 0
 	cmpr.sline = 0
 	cmpr.igls = nil
@@ -164,12 +174,7 @@ SCAN_NEXT_LINE:
 			}
 		}
 		misses++
-		switch {
-		case onmiss != nil:
-			if onmiss(cmpr.sline, sline, cmpr.currentRefs()) {
-				break SCAN_NEXT_LINE
-			}
-		case cmpr.OnMismatch != nil:
+		if cmpr.OnMismatch != nil {
 			if cmpr.OnMismatch(cmpr.sline, sline, cmpr.currentRefs()) {
 				break SCAN_NEXT_LINE
 			}

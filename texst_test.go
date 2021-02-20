@@ -26,7 +26,7 @@ func Example() {
 		`Jun 27 21:58:11.112 INFO  [thread1] create localization dir:test1/test.RnD/l10n
 Jun 27 18:58:11.125 DEBUG [thread1] clearing MAPS
 Jun 27 21:58:11.113 INFO  [thread2] load state from file:test1/test.Rnd/bcplus.json`,
-		nil)
+	)
 	fmt.Println(err)
 	// Output:
 	// mismatch 2/7: 'Jun 27 18:58:11.125 DEBUG [thread1] clearing MAPS' / 'Jun 27 18:58:11.125 DEBUG [thread1] clearing maps'
@@ -37,14 +37,16 @@ Jun 27 21:58:11.113 INFO  [thread2] load state from file:test1/test.Rnd/bcplus.j
 func TestCompare_good(t *testing.T) {
 	noError := func(ref, subj string) func(*testing.T) {
 		return func(t *testing.T) {
-			var cmpr Compare
-			err := cmpr.Strings(ref, subj, func(n int, l string, rs []*RefLine) bool {
-				t.Errorf("%3d:%s", n, l)
-				for _, r := range rs {
-					t.Errorf("R %c:%s", r.IGroup(), r.Text())
-				}
-				return false
-			})
+			cmpr := Compare{
+				OnMismatch: func(n int, l string, rs []*RefLine) bool {
+					t.Errorf("%3d:%s", n, l)
+					for _, r := range rs {
+						t.Errorf("R %c:%s", r.IGroup(), r.Text())
+					}
+					return false
+				},
+			}
+			err := cmpr.Strings(ref, subj)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -72,14 +74,16 @@ In group 1`,
 func TestCompare_miss(t *testing.T) {
 	wantError := func(ref, subj string) func(*testing.T) {
 		return func(t *testing.T) {
-			var cmpr Compare
-			err := cmpr.Strings(ref, subj, func(n int, l string, rs []*RefLine) bool {
-				t.Logf("%3d:%s", n, l)
-				for _, r := range rs {
-					t.Logf("R %c:%s", r.IGroup(), r.Text())
-				}
-				return false
-			})
+			cmpr := Compare{
+				OnMismatch: func(n int, l string, rs []*RefLine) bool {
+					t.Logf("%3d:%s", n, l)
+					for _, r := range rs {
+						t.Logf("R %c:%s", r.IGroup(), r.Text())
+					}
+					return false
+				},
+			}
+			err := cmpr.Strings(ref, subj)
 			if err == nil {
 				t.Fatal("no missmatch detected")
 			} else if _, ok := err.(MismatchCount); !ok {
