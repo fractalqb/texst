@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io"
 	"log"
 	"os"
 
@@ -30,6 +31,9 @@ var compareCmd = struct {
 }
 
 func checkFiles(cmd *cobra.Command, files []string) {
+	if len(files) == 0 {
+		checkRd(rootCmd.reffile, "stdin", os.Stdin)
+	}
 	for _, f := range files {
 		checkFile(rootCmd.reffile, f)
 	}
@@ -41,6 +45,10 @@ func checkFile(ref, subj string) bool {
 		log.Fatal(err)
 	}
 	defer sr.Close()
+	return checkRd(ref, subj, sr)
+}
+
+func checkRd(ref, sname string, subj io.Reader) bool {
 	cmpr := texst.Compare{
 		MismatchLimit: rootCmd.mlim,
 		OnMismatch: func(n int, l string, rs []*texst.RefLine) bool {
@@ -51,11 +59,11 @@ func checkFile(ref, subj string) bool {
 			return false
 		},
 	}
-	err = cmpr.RefFile(ref, sr)
+	err := cmpr.RefFile(ref, subj)
 	if err == nil {
-		log.Printf("%s matches reference %s\n", subj, ref)
+		log.Printf("%s matches reference %s\n", sname, ref)
 		return true
 	}
-	log.Printf("%s mismatch with %s: %s", subj, ref, err)
+	log.Printf("%s mismatch with %s: %s", sname, ref, err)
 	return false
 }

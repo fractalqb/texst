@@ -101,13 +101,15 @@ lines currently in question. For each interleaving group there is at
 most one reference line to be matched. The first successful match of
 the subject line with a reference line accepts the subject line. Then
 the matched reference text line is replaced with the next reference
-text line from the same interleaving group, if any. Afterward scanning
-continues with the next subject line.
+text line from the same interleaving group, if any.  Afterward
+scanning continues with the next subject line. Reference lines from
+different interleaving groups are checked in the same order as they are
+declared in the preamble.
 
 If the subject line does not match, a mismatch is reported and
 scanning continues with the next subject text line. One can configure
 a maximum number of mismatches that is processed before scanning is
-aborted. By default the complete subject text is scanned. 
+aborted. By default the complete subject text is scanned.
 
 
 Preamble Lines
@@ -117,8 +119,8 @@ column of the line, e.g.:
 
  \%<interleaving groups>
 
-It a preamble line with tag '%' that sets the interleaving groups of
-the reference text specification. Currently there is not other
+This is a preamble line with tag '%' that sets the interleaving groups
+of the reference text specification. Currently there is not other
 preamble line type.
 
 
