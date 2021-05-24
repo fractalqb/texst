@@ -32,8 +32,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/fractalqb/texst"
 )
@@ -107,7 +109,7 @@ func (cfg Config) Fatal(t *testing.T, hint string, subj io.Reader) {
 func (cfg *Config) compare(t *testing.T, hint string, subj io.Reader) error {
 	cmpr := &texst.Compare{
 		MismatchLimit: cfg.MismatchLimit,
-		OnMismatch:    onMismatch{t, hint}.write,
+		OnMismatch:    MismatchError(t, hint, false),
 	}
 	reffile := cfg.RefFileName(t, hint)
 	return cmpr.RefFile(reffile, subj)
@@ -142,17 +144,18 @@ func (cfg Config) Record(t *testing.T, hint string, subj io.Reader) {
 	t.Errorf("texst test-recorder wrote: %s", reffile)
 }
 
-type onMismatch struct {
-	t    *testing.T
-	hint string
-}
-
-func (dm onMismatch) write(ln int, l string, rln []*texst.RefLine) bool {
-	dm.t.Errorf("%s mismatch line %d [%s]", dm.hint, ln, l)
-	for _, r := range rln {
-		if r != nil {
-			dm.t.Errorf("- ref line %d igroup '%c' [%s]", r.Line(), r.IGroup(), r.Text())
-		}
+func MismatchError(t *testing.T, hint string, abort bool) texst.MismatchFunc {
+	if hint == "" {
+		hint = "subject"
 	}
-	return false
+	return func(ln int, l string, rln []*texst.RefLine) bool {
+		lnstr := strconv.Itoa(ln)
+		t.Errorf("%s:%s [%s]", hint, lnstr, l)
+		padlen := utf8.RuneCountInString(hint) + len(lnstr)
+		pad := strings.Repeat(" ", padlen)
+		for _, r := range rln {
+			t.Logf("%s%c [%s]", pad, r.IGroup(), r.Text())
+		}
+		return abort
+	}
 }
