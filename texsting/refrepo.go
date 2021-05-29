@@ -27,8 +27,6 @@
 package texsting
 
 import (
-	"bufio"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -131,15 +129,8 @@ func (cfg Config) Record(t *testing.T, hint string, subj io.Reader) {
 		t.Fatal(err)
 	}
 	defer wr.Close()
-	scn := bufio.NewScanner(subj)
-	for scn.Scan() {
-		fmt.Fprintf(wr, "%c ", texst.TagRefLine)
-		if _, err := wr.Write(scn.Bytes()); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := fmt.Fprintln(wr); err != nil {
-			t.Fatal(err)
-		}
+	if err = texst.Prepare(wr, subj); err != nil {
+		t.Error(err)
 	}
 	t.Errorf("texst test-recorder wrote: %s", reffile)
 }
