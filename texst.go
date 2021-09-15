@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"unicode/utf8"
 
 	"git.fractalqb.de/fractalqb/icontainer/islist"
 )
@@ -54,11 +55,20 @@ type Compare struct {
 	// OnMismatch is called on each detected mismatch
 	OnMismatch MismatchFunc
 
-	igls   []rune
-	igrefs map[rune]*islist.List
-	rline  int
-	sline  int
-	gsegs  string
+	igroupLs  []rune
+	igoupRefs map[rune]*islist.List
+	refLine   int
+	sbjLine   int
+	gmasks    map[rune]*maskDefns
+}
+
+func (cmpr *Compare) isIGroup(r rune) bool {
+	for _, g := range cmpr.igroupLs {
+		if g == r {
+			return true
+		}
+	}
+	return false
 }
 
 // MismatchCount is the error used to report the total number of mismatches
@@ -134,39 +144,41 @@ func (cmpr *Compare) RefFile(refname string, subj io.Reader) error {
 }
 
 func (cmpr *Compare) cmpr(ref *bufio.Reader, subj *bufio.Scanner) (err error) {
-	cmpr.rline = 0
-	cmpr.sline = 0
-	cmpr.igls = nil
-	if err = cmpr.preamble(ref); err != nil {
-		return RefError{Line: cmpr.rline, err: err}
+	cmpr.refLine = 0
+	cmpr.sbjLine = 0
+	cmpr.igroupLs = nil
+	if err = cmpr.readPreamble(ref); err != nil {
+		return RefError{Line: cmpr.refLine, err: err}
 	}
-	cmpr.igrefs = make(map[rune]*islist.List)
+	cmpr.igoupRefs = make(map[rune]*islist.List)
+	cmpr.gmasks = make(map[rune]*maskDefns)
 	defer func() {
-		cmpr.igrefs = nil
+		cmpr.igoupRefs = nil
+		cmpr.gmasks = nil
 	}()
-	if err = cmpr.globals(ref); err != nil {
-		return RefError{Line: cmpr.rline, err: err}
+	if err = cmpr.readGlobals(ref); err != nil {
+		return RefError{Line: cmpr.refLine, err: err}
 	}
-	if len(cmpr.igls) == 0 {
+	if len(cmpr.igroupLs) == 0 {
 		rl := newRefLine()
-		if err = rl.read(ref, cmpr.gsegs, &cmpr.rline); err != nil {
-			return RefError{Line: cmpr.rline, err: err}
+		if err = rl.read(ref, cmpr.gmasks, &cmpr.refLine); err != nil {
+			return RefError{Line: cmpr.refLine, err: err}
 		}
-		cmpr.igls = []rune{rl.igroup}
-		cmpr.igrefs[rl.igroup] = islist.New(rl)
+		cmpr.igroupLs = []rune{rl.igroup}
+		cmpr.igoupRefs[rl.igroup] = islist.New(rl)
 	}
 	misses := 0
 SCAN_NEXT_LINE:
 	for subj.Scan() {
 		if err = subj.Err(); err != nil {
-			return SubjError{Line: cmpr.sline, err: err}
+			return SubjError{Line: cmpr.sbjLine, err: err}
 		}
-		cmpr.sline++
+		cmpr.sbjLine++
 		sline := subj.Text()
-		for _, r := range cmpr.igls {
+		for _, r := range cmpr.igroupLs {
 			rl, err := cmpr.nextRefLine(r, ref)
 			if err != nil {
-				return RefError{Line: cmpr.rline, err: err}
+				return RefError{Line: cmpr.refLine, err: err}
 			}
 			if rl != nil && rl.matches(sline) == nil {
 				cmpr.dropRefLine(rl)
@@ -175,7 +187,7 @@ SCAN_NEXT_LINE:
 		}
 		misses++
 		if cmpr.OnMismatch != nil {
-			if cmpr.OnMismatch(cmpr.sline, sline, cmpr.currentRefs()) {
+			if cmpr.OnMismatch(cmpr.sbjLine, sline, cmpr.currentRefs()) {
 				break SCAN_NEXT_LINE
 			}
 		}
@@ -190,18 +202,18 @@ SCAN_NEXT_LINE:
 }
 
 func (cmpr *Compare) currentRefs() []*RefLine {
-	res := make([]*RefLine, len(cmpr.igls))
-	for i, nm := range cmpr.igls {
-		rls := cmpr.igrefs[nm]
+	var res []*RefLine
+	for _, nm := range cmpr.igroupLs {
+		rls := cmpr.igoupRefs[nm]
 		if rls != nil && rls.Len() > 0 {
-			res[i] = rls.Front().(*RefLine)
+			res = append(res, rls.Front().(*RefLine))
 		}
 	}
 	return res
 }
 
 func (cmpr *Compare) nextRefLine(igroup rune, rd *bufio.Reader) (*RefLine, error) {
-	ls := cmpr.igrefs[igroup]
+	ls := cmpr.igoupRefs[igroup]
 	if ls == nil || ls.Len() == 0 {
 	READ_LOOP:
 		for {
@@ -212,12 +224,12 @@ func (cmpr *Compare) nextRefLine(igroup rune, rd *bufio.Reader) (*RefLine, error
 			switch tag {
 			case TagRefLine:
 				rl := newRefLine()
-				if err = rl.read(rd, cmpr.gsegs, &cmpr.rline); err != nil {
+				if err = rl.read(rd, cmpr.gmasks, &cmpr.refLine); err != nil {
 					return nil, err
 				}
-				if ls = cmpr.igrefs[rl.igroup]; ls == nil {
+				if ls = cmpr.igoupRefs[rl.igroup]; ls == nil {
 					ls = islist.New(rl)
-					cmpr.igrefs[rl.igroup] = ls
+					cmpr.igoupRefs[rl.igroup] = ls
 				} else {
 					ls.PushBack(rl)
 				}
@@ -236,7 +248,7 @@ func (cmpr *Compare) nextRefLine(igroup rune, rd *bufio.Reader) (*RefLine, error
 }
 
 func (cmpr *Compare) dropRefLine(rl *RefLine) {
-	ls := cmpr.igrefs[rl.igroup]
+	ls := cmpr.igoupRefs[rl.igroup]
 	if ls == nil {
 		panic("dropRefLine: no igroup list")
 	}
@@ -246,14 +258,14 @@ func (cmpr *Compare) dropRefLine(rl *RefLine) {
 	ls.Drop(1)
 }
 
-func (cmpr *Compare) preamble(ref *bufio.Reader) error {
-	return eachTagLine(ref, &cmpr.rline, tags(TagPreamble), func(line string) error {
+func (cmpr *Compare) readPreamble(ref *bufio.Reader) error {
+	return eachTagLine(ref, &cmpr.refLine, tags(TagPreamble), func(line string) error {
 		if len(line) < 2 {
-			return errors.New("incoplete preable line")
+			return errors.New("incomplete preamble line")
 		}
 		switch line[1] {
 		case PreIGroups:
-			cmpr.igls = []rune(line[2:])
+			cmpr.igroupLs = []rune(line[2:])
 		default:
 			return fmt.Errorf("unknown preamble tag: '%c'", line[1])
 		}
@@ -261,29 +273,109 @@ func (cmpr *Compare) preamble(ref *bufio.Reader) error {
 	})
 }
 
-func (cmpr *Compare) globals(ref *bufio.Reader) error {
-	return eachTagLine(ref, &cmpr.rline, globalsFilter, func(line string) error {
-		l := len(line)
+func (cmpr *Compare) readGlobals(ref *bufio.Reader) error {
+	return eachTagLine(ref, &cmpr.refLine, globalsFilter, func(line string) error {
+		l := utf8.RuneCountInString(line)
 		if l < 2 {
 			return errors.New("incomplete global line")
 		}
-		switch line[0] {
+		tag, rsz := utf8.DecodeRuneInString(line)
+		switch tag {
 		case TagGlobalSeg:
-			if l == 2 {
-				cmpr.gsegs = ""
-			} else {
-				cmpr.gsegs = line
+			segs := cmpr.gmasks[0]
+			if segs == nil {
+				segs = new(maskDefns)
+				cmpr.gmasks[0] = segs
+			}
+			if rep, err := segs.set(line[rsz:]); err != nil {
+				return err
+			} else if rep != "" {
+				return errors.New("Redefining global mask line") // TODO more specific?
 			}
 		default:
-			return fmt.Errorf("unknown global tag: '%c'", line[1])
+			if !cmpr.isIGroup(tag) {
+				return fmt.Errorf("unknown global tag: '%c'", line[1])
+			}
+			segs := cmpr.gmasks[tag]
+			if segs == nil {
+				segs = new(maskDefns)
+				cmpr.gmasks[tag] = segs
+			}
+			if rep, err := segs.set(line[rsz:]); err != nil {
+				return err
+			} else if rep != "" {
+				return errors.New("Redefining global mask line") // TODO more specific?
+			}
 		}
 		return nil
 	})
 }
 
-func globalsFilter(t byte) bool {
-	return t != TagRefLine && t != TagRefArgs
+type maskDefns struct {
+	exact  string
+	optn   string
+	vari   string
+	regexp string
 }
+
+// set requires the line length to be valid, i.e. at least one rune for mask mode
+func (segs *maskDefns) set(line string) (replaces string, err error) {
+	mode, rsz := utf8.DecodeRuneInString(line)
+	switch mode {
+	case ArgMaskExact:
+		if segs.exact != "" {
+			replaces = segs.exact
+		}
+		segs.exact = line[rsz:]
+	case ArgMaskOpt:
+		if segs.optn != "" {
+			replaces = segs.optn
+		}
+		segs.optn = line[rsz:]
+	case ArgMaskVar:
+		if segs.vari != "" {
+			replaces = segs.vari
+		}
+		segs.vari = line[rsz:]
+	case ArgRegexp:
+		if segs.regexp != "" {
+			replaces = segs.regexp
+		}
+		segs.regexp = line[rsz:]
+	default:
+		err = fmt.Errorf("Unknown mask mode '%c'", mode)
+	}
+	return replaces, err
+}
+
+func (segs *maskDefns) applyTo(rl *RefLine) error {
+	if segs == nil {
+		return nil
+	}
+	if segs.exact != "" {
+		if err := rl.masksPattern(segs.exact, ArgMaskExact); err != nil {
+			return err
+		}
+	}
+	if segs.optn != "" {
+		if err := rl.masksPattern(segs.optn, ArgMaskOpt); err != nil {
+			return err
+		}
+	}
+	if segs.vari != "" {
+		if err := rl.masksPattern(segs.vari, ArgMaskVar); err != nil {
+			return err
+		}
+	}
+	if segs.regexp != "" {
+		if err := rl.regexpArg(segs.regexp); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func globalsFilter(t byte) bool { return t != TagRefLine }
 
 // tags creates a line tag filter for several tags
 func tags(tags ...byte) func(byte) bool {

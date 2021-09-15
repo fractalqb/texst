@@ -76,7 +76,7 @@ func TestRefLine_Read(t *testing.T) {
 	var lno int
 	t.Run("wrong tag on line", func(t *testing.T) {
 		var rl RefLine
-		err := rl.read(bufio.NewReader(strings.NewReader("x\n>")), "", &lno)
+		err := rl.read(bufio.NewReader(strings.NewReader("x\n>")), nil, &lno)
 		if err == nil {
 			t.Fatal("accepted non-reference-line")
 		}
@@ -86,7 +86,7 @@ func TestRefLine_Read(t *testing.T) {
 	})
 	t.Run("wrong tag on last line", func(t *testing.T) {
 		var rl RefLine
-		err := rl.read(bufio.NewReader(strings.NewReader("x")), "", &lno)
+		err := rl.read(bufio.NewReader(strings.NewReader("x")), nil, &lno)
 		if err == nil {
 			t.Fatal("accepted non-reference-line")
 		}
@@ -96,7 +96,7 @@ func TestRefLine_Read(t *testing.T) {
 	})
 	t.Run("no igroup in line", func(t *testing.T) {
 		var rl RefLine
-		err := rl.read(bufio.NewReader(strings.NewReader(">\n> ")), "", &lno)
+		err := rl.read(bufio.NewReader(strings.NewReader(">\n> ")), nil, &lno)
 		if err == nil {
 			t.Fatal("accepted line without igroup")
 		}
@@ -106,7 +106,7 @@ func TestRefLine_Read(t *testing.T) {
 	})
 	t.Run("no igroup in last line", func(t *testing.T) {
 		var rl RefLine
-		err := rl.read(bufio.NewReader(strings.NewReader(">")), "", &lno)
+		err := rl.read(bufio.NewReader(strings.NewReader(">")), nil, &lno)
 		if err == nil {
 			t.Fatal("accepted line without igroup")
 		}
@@ -116,7 +116,7 @@ func TestRefLine_Read(t *testing.T) {
 	})
 	t.Run("valid line", func(t *testing.T) {
 		var rl RefLine
-		err := rl.read(bufio.NewReader(strings.NewReader(">:this is content\n")), "", &lno)
+		err := rl.read(bufio.NewReader(strings.NewReader(">:this is content\n")), nil, &lno)
 		if err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
@@ -129,7 +129,7 @@ func TestRefLine_Read(t *testing.T) {
 	})
 	t.Run("valid last line", func(t *testing.T) {
 		var rl RefLine
-		err := rl.read(bufio.NewReader(strings.NewReader(">:this is content")), "", &lno)
+		err := rl.read(bufio.NewReader(strings.NewReader(">:this is content")), nil, &lno)
 		if err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
@@ -144,7 +144,7 @@ func TestRefLine_Read(t *testing.T) {
 		var rl RefLine
 		err := rl.read(bufio.NewReader(strings.NewReader(
 			">:just example content\n =  xx         yyyyyyy",
-		)), "", &lno)
+		)), nil, &lno)
 		if err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
@@ -173,7 +173,7 @@ func TestRefLine_matches(t *testing.T) {
 		t.Run(caseName, func(t *testing.T) {
 			var lno int
 			rl := newRefLine()
-			err := rl.read(bufio.NewReader(strings.NewReader(ref)), "", &lno)
+			err := rl.read(bufio.NewReader(strings.NewReader(ref)), nil, &lno)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -128,10 +128,7 @@ type RefLine struct {
 	islsNext *RefLine
 }
 
-func newRefLine() *RefLine {
-	res := new(RefLine)
-	return res
-}
+func newRefLine() *RefLine { return new(RefLine) }
 
 // Line returns the line number in the refrecence text specification.
 func (rl *RefLine) Line() int { return rl.srcLn + 1 }
@@ -332,9 +329,10 @@ func (rl *RefLine) postMaskSeg(midx int) (seg string, final bool) {
 
 var argRegexp = regexp.MustCompile(`^(.)(\[\d+\])? (.+)$`)
 
-func (rl *RefLine) read(rd *bufio.Reader, gmasks string, lno *int) error {
+func (rl *RefLine) read(rd *bufio.Reader, gmasks map[rune]*maskDefns, lno *int) error {
 	rl.srcLn = *lno
 	line, err := readLine(rd, lno)
+	globalSegs := gmasks[0]
 	switch {
 	case err == io.EOF:
 		tag, igroup, tail := lineHead(line)
@@ -347,17 +345,11 @@ func (rl *RefLine) read(rd *bufio.Reader, gmasks string, lno *int) error {
 		rl.igroup = igroup
 		rl.text = line[tail:]
 		rl.masks = nil
-		if len(gmasks) > 2 {
-			mode, err := parseMatchMode(gmasks[1])
-			if err != nil {
-				return err
-			}
-			err = rl.masksPattern(gmasks[2:], mode)
-			if err != nil {
-				return err
-			}
+		if err = globalSegs.applyTo(rl); err != nil {
+			return err
 		}
-		return nil
+		err = gmasks[igroup].applyTo(rl)
+		return err
 	case err != nil:
 		return err
 	}
@@ -371,15 +363,11 @@ func (rl *RefLine) read(rd *bufio.Reader, gmasks string, lno *int) error {
 	rl.igroup = igroup
 	rl.text = line[tail:]
 	rl.masks = nil
-	if len(gmasks) > 2 {
-		mode, err := parseMatchMode(gmasks[1])
-		if err != nil {
-			return err
-		}
-		err = rl.masksPattern(gmasks[2:], mode)
-		if err != nil {
-			return err
-		}
+	if err = globalSegs.applyTo(rl); err != nil {
+		return err
+	}
+	if err = gmasks[igroup].applyTo(rl); err != nil {
+		return err
 	}
 	err = eachTagLine(rd, lno, tags(TagRefArgs), func(line string) error {
 		if len(line) < 2 {

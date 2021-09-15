@@ -4,5 +4,5 @@ go 1.15
 
 require (
 	git.fractalqb.de/fractalqb/icontainer v0.1.0
-	github.com/spf13/cobra v1.1.3
+	github.com/spf13/cobra v1.2.1
 )
