@@ -36,31 +36,31 @@ func parseMatchMode(c byte) (matchMode, error) {
 	return 0, fmt.Errorf("invalid match mode '%c'", c)
 }
 
-func (mm matchMode) locate(subj, refseg string, start int) int {
+func (mm matchMode) locate(subj, refseg string, startAt int) int {
 	switch mm {
 	case ArgMaskExact:
-		if len(subj) < start {
+		if len(subj) < startAt {
 			return -1
 		}
-		if strings.HasPrefix(subj[start:], refseg) {
+		if strings.HasPrefix(subj[startAt:], refseg) {
 			return 0
 		}
 		return -1
 	case ArgMaskOpt:
-		if len(subj) < start {
+		if len(subj) < startAt {
 			return -1
 		}
-		pos := strings.Index(subj[start:], refseg)
+		pos := strings.Index(subj[startAt:], refseg)
 		if pos < 0 {
 			return -1
 		}
 		return pos
 	case ArgMaskVar:
-		start++
-		if len(subj) < start {
+		startAt++
+		if len(subj) < startAt {
 			return -1
 		}
-		pos := strings.Index(subj[start:], refseg)
+		pos := strings.Index(subj[startAt:], refseg)
 		if pos < 0 {
 			return -1
 		}
@@ -195,8 +195,14 @@ func utf8Start(s string, toRune int) (res int) {
 
 type subjmatch struct{ start, end int }
 
-func (sm subjmatch) of(line string) string {
-	return line[sm.start:sm.end]
+func (sm subjmatch) of(line string) (string, error) {
+	switch {
+	case sm.start >= len(line):
+		return "", errors.New("Submatch after line end")
+	case sm.end > len(line):
+		return line[sm.start:], errors.New("Submatch exceeds line")
+	}
+	return line[sm.start:sm.end], nil
 }
 
 func (rl *RefLine) matches(sline string) (err error) {
@@ -232,8 +238,11 @@ func (rl *RefLine) matches(sline string) (err error) {
 			case ArgMaskExact:
 				sseg.end = sseg.start + utf8Start(sline, mask.len())
 				reftxt, final := rl.postMaskSeg(midx)
-				if err = mask.check(rl.text, sseg.of(sline)); err != nil {
-					backtrack("masked segment '%s': %s", sseg.of(sline), err)
+				if segstr, err := sseg.of(sline); err != nil {
+					backtrack("masked segment '%s': %s", segstr, err)
+					continue
+				} else if err = mask.check(rl.text, segstr); err != nil {
+					backtrack("masked segment '%s': %s", segstr, err)
 					continue
 				}
 				if mask.mode.locate(sline, reftxt, sseg.end) >= 0 {
@@ -252,8 +261,11 @@ func (rl *RefLine) matches(sline string) (err error) {
 				reftxt, final := rl.postMaskSeg(midx)
 				if pos := mask.mode.locate(sline, reftxt, sseg.start); pos >= 0 {
 					sseg.end = sseg.start + pos
-					if err = mask.check(rl.text, sseg.of(sline)); err != nil {
-						backtrack("masked segment '%s': %s", sseg.of(sline), err)
+					if segstr, err := sseg.of(sline); err != nil {
+						backtrack("masked segment '%s': %s", segstr, err)
+						continue
+					} else if err = mask.check(rl.text, segstr); err != nil {
+						backtrack("masked segment '%s': %s", segstr, err)
 						continue
 					}
 					if final {
@@ -280,8 +292,11 @@ func (rl *RefLine) matches(sline string) (err error) {
 				pos := matchMode(ArgMaskVar).locate(sline, reftxt, sseg.end)
 				if pos >= 0 {
 					sseg.end += pos
-					if err = mask.check(rl.text, sseg.of(sline)); err != nil {
-						backtrack("masked segment '%s': %s", sseg.of(sline), err)
+					if segstr, err := sseg.of(sline); err != nil {
+						backtrack("masked segment '%s': %s", segstr, err)
+						continue
+					} else if err = mask.check(rl.text, segstr); err != nil {
+						backtrack("masked segment '%s': %s", segstr, err)
 						continue
 					}
 					if final {
@@ -332,7 +347,6 @@ var argRegexp = regexp.MustCompile(`^(.)(\[\d+\])? (.+)$`)
 func (rl *RefLine) read(rd *bufio.Reader, gmasks map[rune]*maskDefns, lno *int) error {
 	rl.srcLn = *lno
 	line, err := readLine(rd, lno)
-	globalSegs := gmasks[0]
 	switch {
 	case err == io.EOF:
 		tag, igroup, tail := lineHead(line)
@@ -345,7 +359,7 @@ func (rl *RefLine) read(rd *bufio.Reader, gmasks map[rune]*maskDefns, lno *int) 
 		rl.igroup = igroup
 		rl.text = line[tail:]
 		rl.masks = nil
-		if err = globalSegs.applyTo(rl); err != nil {
+		if err = gmasks[0].applyTo(rl); err != nil {
 			return err
 		}
 		err = gmasks[igroup].applyTo(rl)
@@ -363,7 +377,7 @@ func (rl *RefLine) read(rd *bufio.Reader, gmasks map[rune]*maskDefns, lno *int) 
 	rl.igroup = igroup
 	rl.text = line[tail:]
 	rl.masks = nil
-	if err = globalSegs.applyTo(rl); err != nil {
+	if err = gmasks[0].applyTo(rl); err != nil {
 		return err
 	}
 	if err = gmasks[igroup].applyTo(rl); err != nil {
@@ -386,7 +400,7 @@ func (rl *RefLine) read(rd *bufio.Reader, gmasks map[rune]*maskDefns, lno *int) 
 	return err
 }
 
-func (rl *RefLine) regexpArg(arg string) error {
+func (rl *RefLine) regexpArg(arg string) (err error) {
 	match := argRegexp.FindStringSubmatch(arg)
 	if match == nil {
 		return errors.New("syntax error in regexp argument line")
@@ -394,7 +408,10 @@ func (rl *RefLine) regexpArg(arg string) error {
 	name, _ := utf8.DecodeRuneInString(match[1])
 	num := 0
 	if match[2] != "" {
-		num, _ = strconv.Atoi(strings.Trim(match[2], "[]"))
+		num, err = strconv.Atoi(strings.Trim(match[2], "[]"))
+		if err != nil {
+			return err
+		}
 	}
 	rgx, err := regexp.Compile(match[3])
 	if err != nil {
@@ -417,7 +434,7 @@ func (rl *RefLine) regexpArg(arg string) error {
 		}
 	}
 	if app == 0 {
-		return fmt.Errorf("no mask %s to apply regexp '%s' to", match[2], match[3])
+		return fmt.Errorf("no mask '%c' to apply regexp '%s' to", name, match[3])
 	}
 	return nil
 }

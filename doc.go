@@ -1,31 +1,32 @@
 /*
 
 Package texst compares text files against a reference text
-specifications. The simplest reference text would be the verbatim text
-with each line prefixed with a 'reference text' line tag, e.g. "> ".
-This would only match exactly the verbatim text. To do more complex
-matching one can add other line types to the reference text
-specification.  Line types are recognised by the rune in the first
-column of each line in the reference text specification. There are
-line types that serve different purposes.
+specifications. A specification consists of the reference text itself
+combined with options how the reference text is matched. Lines with
+reference text are marked with a prefix that has '>' in the first
+column. The simplest reference text would be the verbatim text with
+each line prefixed with a "> ".  This would only match exactly the
+verbatim text. To do more complex matching one can add other line
+types to the reference text specification.  Line types are recognized
+by the rune in the first column of each line in the reference text
+specification. There are line types that serve different purposes.
 
 Most often one might need to mark parts of a reference line that do
-not need to match exactly the checked “subject” text. We will call
-these parts 'masks'. texst does not embed markers into the reference
-text line to identify masks because it would need some very
-sophisticated escaping to make arbitrary reference text feasible.
-Instead each reference text line may be followed by argument lines,
-that define masks and the way the reference text is matched against
-them. Argument lines start with ' ' (U+0020). There are different
-types of argument lines, e.g. this one starting with " =":
+not need to match exactly the compared “subject” text. We will call
+these parts 'masks'. Each reference text line may be followed by
+argument lines, that define masks and the way the reference text is
+matched against them. Argument lines start with ' ' (U+0020). There
+are different types of argument lines, e.g. this one starting with
+" =":
 
  > This is some reference text content
   =        xxxx
 
 The above example says that the four runes above the non-space part of
-the argument line, i.e. "some", are not compared to the subject
-text. The second column, here '=', identifies the specific type of
-argument line, for details see Types of argument lines. The text
+the argument line, i.e. "some", are not compared to the compared
+subject text. The second column, here '=', identifies the specific
+type of argument line, for details see Types of Argument Lines. The
+text
 
  This is blue reference text content
 
@@ -92,12 +93,11 @@ and
 
 match the reference.
 
-
-Matching Reference Lines
+Comparing Subject and Reference
 
 Comparing subject texts is done by scanning the subject text line by
 line and then matching the current subject line against the reference
-lines currently in question. For each interleaving group there is at
+lines currently in question. For each Interleaving Group there is at
 most one reference line to be matched. The first successful match of
 the subject line with a reference line accepts the subject line. Then
 the matched reference text line is replaced with the next reference
@@ -111,6 +111,19 @@ scanning continues with the next subject text line. One can configure
 a maximum number of mismatches that is processed before scanning is
 aborted. By default the complete subject text is scanned.
 
+Types of Argument Lines
+
+TODO: Be more descriptive
+
+There are three types of mask lines:
+
+ = Part of subject must have same length as mask
+ * Part of subject may be of any length, even 0
+ + Part of subject may be of any length >0
+
+There are regexp lines to match masked subject parts:
+
+ ~<n>['['<idx>']'] <regexp>
 
 Preamble Lines
 

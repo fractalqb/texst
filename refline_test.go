@@ -2,6 +2,7 @@ package texst
 
 import (
 	"bufio"
+	"bytes"
 	"reflect"
 	"strings"
 	"testing"
@@ -392,4 +393,68 @@ func TestRefLine_matches(t *testing.T) {
  ~x ^\d+$`,
 		"ab42e",
 		false)
+}
+
+func TestRefLine_regexp(t *testing.T) {
+	testCase := func(name string, success bool, ref, mask, regex, subj string) {
+		t.Run(name, func(t *testing.T) {
+			txt := ref + "\n" + mask + "\n" + regex
+			var lno int
+			rl := newRefLine()
+			err := rl.read(bufio.NewReader(strings.NewReader(txt)), nil, &lno)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = rl.matches(subj)
+			if success && err != nil {
+				t.Error(err)
+			} else if !success && err == nil {
+				t.Error("Unexpected regexp match")
+			}
+		})
+	}
+	testCase("regex matches", true,
+		"> foo bar baz",
+		" =   xxxx",
+		" ~x [a-z]+",
+		"foo bar baz",
+	)
+	testCase("regex missmatch", false,
+		"> foo bar baz",
+		" =   xxxx",
+		" ~x ^[a-z]+$",
+		"foo bar baz",
+	)
+}
+
+func TestRefLine_bugs(t *testing.T) {
+	testCase := func(name string, success bool, subj, ref string, args ...string) {
+		t.Run(name, func(t *testing.T) {
+			var sb bytes.Buffer
+			sb.WriteString(ref)
+			for _, arg := range args {
+				sb.WriteByte('\n')
+				sb.WriteString(arg)
+			}
+			var lno int
+			rl := newRefLine()
+			err := rl.read(bufio.NewReader(&sb), nil, &lno)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = rl.matches(subj)
+			if success && err != nil {
+				t.Error(err)
+			} else if !success && err == nil {
+				t.Error("Unexpected regexp match")
+			}
+		})
+	}
+	testCase("searched segment may exceed subject line", false,
+		"Selected: John Doe -1 2021-09-16 21:17:07.037837468 +0200 CEST",
+		"> Selected: John Doe -1 2021-09-15 07:45:26.042376208 +0200 CEST",
+		" =                      dddd dd dd dd dd dd           ddddd",
+		" +                                          xxxxxxxxx       xxxx",
+		" ~d ^[0-9]+$",
+	)
 }

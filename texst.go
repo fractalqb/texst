@@ -315,7 +315,7 @@ type maskDefns struct {
 	exact  string
 	optn   string
 	vari   string
-	regexp string
+	regexp []string
 }
 
 // set requires the line length to be valid, i.e. at least one rune for mask mode
@@ -338,10 +338,7 @@ func (segs *maskDefns) set(line string) (replaces string, err error) {
 		}
 		segs.vari = line[rsz:]
 	case ArgRegexp:
-		if segs.regexp != "" {
-			replaces = segs.regexp
-		}
-		segs.regexp = line[rsz:]
+		segs.regexp = append(segs.regexp, line[rsz:])
 	default:
 		err = fmt.Errorf("Unknown mask mode '%c'", mode)
 	}
@@ -367,8 +364,8 @@ func (segs *maskDefns) applyTo(rl *RefLine) error {
 			return err
 		}
 	}
-	if segs.regexp != "" {
-		if err := rl.regexpArg(segs.regexp); err != nil {
+	for _, regexp := range segs.regexp {
+		if err := rl.regexpArg(regexp); err != nil {
 			return err
 		}
 	}
