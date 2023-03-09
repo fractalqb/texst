@@ -30,6 +30,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -37,6 +38,13 @@ import (
 
 	"github.com/fractalqb/texst"
 )
+
+// When this environment variable is set to a regexp and the name of the current
+// test matches calls to Error or Fatal will record the subj as new reference
+// data instead of comparing it. E.g.
+//
+//	TEXSTING_RECORD=TestRecording go test .
+const RecordEnv = "TEXSTING_RECORD"
 
 func Error(t *testing.T, hint string, subj io.Reader) error {
 	return defaultConfig.Error(t, hint, subj)
@@ -90,18 +98,40 @@ var defaultConfig = Config{
 }
 
 func (cfg Config) Error(t *testing.T, hint string, subj io.Reader) error {
-	err := cfg.compare(t, hint, subj)
-	if err != nil {
-		t.Error(err)
+	if recodTest(t) {
+		cfg.Record(t, hint, subj)
+		return nil
+	} else {
+		err := cfg.compare(t, hint, subj)
+		if err != nil {
+			t.Error(err)
+		}
+		return err
 	}
-	return err
 }
 
 func (cfg Config) Fatal(t *testing.T, hint string, subj io.Reader) {
-	err := cfg.compare(t, hint, subj)
-	if err != nil {
-		t.Fatal(err)
+	if recodTest(t) {
+		cfg.Record(t, hint, subj)
+	} else {
+		err := cfg.compare(t, hint, subj)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
+}
+
+func recodTest(t *testing.T) bool {
+	rec := os.Getenv(RecordEnv)
+	if rec == "" {
+		return false
+	}
+	r, err := regexp.Compile(rec)
+	if err != nil {
+		t.Logf("texsting: invalid regexp '%s' in %s, not recording: %s", rec, RecordEnv, err)
+		return false
+	}
+	return r.MatchString(t.Name())
 }
 
 func (cfg *Config) compare(t *testing.T, hint string, subj io.Reader) error {
