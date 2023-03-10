@@ -94,12 +94,14 @@ type Config struct {
 	RefFileName     func(t *testing.T, hint string) string
 	MismatchLimit   int
 	RecordOverwrite bool
+	KeepSubject     bool
 }
 
 var defaultConfig = Config{
 	RefFileName:     RefRepo{Dir: GoTestdataDir}.Filename,
 	MismatchLimit:   1,
 	RecordOverwrite: false,
+	KeepSubject:     true,
 }
 
 func (cfg Config) Error(t *testing.T, hint string, subj io.Reader) error {
@@ -139,7 +141,7 @@ func recodTest(t *testing.T) bool {
 	return r.MatchString(t.Name())
 }
 
-func (cfg *Config) compare(t *testing.T, hint string, subj io.Reader) error {
+func (cfg *Config) compare(t *testing.T, hint string, subj io.Reader) (err error) {
 	cmpr := &texst.Compare{
 		MismatchLimit: cfg.MismatchLimit,
 		OnMismatch:    MismatchError(t, hint, false),
@@ -152,7 +154,24 @@ func (cfg *Config) compare(t *testing.T, hint string, subj io.Reader) error {
 		)
 		return fmt.Errorf("reference texst file %s does not exists", reffile)
 	}
-	return cmpr.RefFile(reffile, subj)
+	if !cfg.KeepSubject {
+		return cmpr.RefFile(reffile, subj)
+	}
+	keepfile := reffile
+	if filepath.Ext(keepfile) == ".texst" {
+		keepfile = keepfile[:len(keepfile)-6]
+	}
+	k, err := os.CreateTemp(filepath.Dir(keepfile), filepath.Base(keepfile)+".")
+	if err != nil {
+		return err
+	}
+	defer func() {
+		k.Close()
+		if err == nil {
+			os.Remove(k.Name())
+		}
+	}()
+	return cmpr.RefFile(reffile, io.TeeReader(subj, k))
 }
 
 func (cfg Config) Record(t *testing.T, hint string, subj io.Reader) {
