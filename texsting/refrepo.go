@@ -27,6 +27,7 @@
 package texsting
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -144,6 +145,13 @@ func (cfg *Config) compare(t *testing.T, hint string, subj io.Reader) error {
 		OnMismatch:    MismatchError(t, hint, false),
 	}
 	reffile := cfg.RefFileName(t, hint)
+	if _, err := os.Stat(reffile); os.IsNotExist(err) {
+		t.Logf("to record a references file run '%[1]s=%[2]s go test -run %[2]s'",
+			RecordEnv,
+			t.Name(),
+		)
+		return fmt.Errorf("reference texst file %s does not exists", reffile)
+	}
 	return cmpr.RefFile(reffile, subj)
 }
 
