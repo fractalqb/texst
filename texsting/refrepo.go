@@ -46,6 +46,10 @@ import (
 //	TEXSTING_RECORD=TestRecording go test .
 const RecordEnv = "TEXSTING_RECORD"
 
+// GoTestdataDir is the name of Go's default directory for testdata (see go help
+// test).
+const GoTestdataDir = "testdata"
+
 func Error(t *testing.T, hint string, subj io.Reader) error {
 	return defaultConfig.Error(t, hint, subj)
 }
@@ -92,7 +96,7 @@ type Config struct {
 }
 
 var defaultConfig = Config{
-	RefFileName:     RefRepo{Dir: "."}.Filename,
+	RefFileName:     RefRepo{Dir: GoTestdataDir}.Filename,
 	MismatchLimit:   1,
 	RecordOverwrite: false,
 }
