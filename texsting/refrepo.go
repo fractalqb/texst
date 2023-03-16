@@ -105,8 +105,12 @@ var defaultConfig = Config{
 }
 
 func (cfg Config) Error(t *testing.T, hint string, subj io.Reader) error {
-	if recodTest(t) {
-		cfg.Record(t, hint, subj)
+	if opts := recodTest(t); opts != nil {
+		tcfg := cfg
+		if opts.overwrite {
+			tcfg.RecordOverwrite = true
+		}
+		tcfg.Record(t, hint, subj)
 		return nil
 	} else {
 		err := cfg.compare(t, hint, subj)
@@ -118,8 +122,12 @@ func (cfg Config) Error(t *testing.T, hint string, subj io.Reader) error {
 }
 
 func (cfg Config) Fatal(t *testing.T, hint string, subj io.Reader) {
-	if recodTest(t) {
-		cfg.Record(t, hint, subj)
+	if opts := recodTest(t); opts != nil {
+		tcfg := cfg
+		if opts.overwrite {
+			tcfg.RecordOverwrite = true
+		}
+		tcfg.Record(t, hint, subj)
 	} else {
 		err := cfg.compare(t, hint, subj)
 		if err != nil {
@@ -128,17 +136,34 @@ func (cfg Config) Fatal(t *testing.T, hint string, subj io.Reader) {
 	}
 }
 
-func recodTest(t *testing.T) bool {
+type recordOpts struct {
+	overwrite bool
+}
+
+func recodTest(t *testing.T) *recordOpts {
 	rec := os.Getenv(RecordEnv)
 	if rec == "" {
-		return false
+		return nil
 	}
-	r, err := regexp.Compile(rec)
+	recs := strings.Split(rec, " ")
+	r, err := regexp.Compile(recs[len(recs)-1])
 	if err != nil {
 		t.Logf("texsting: invalid regexp '%s' in %s, not recording: %s", rec, RecordEnv, err)
-		return false
+		return nil
 	}
-	return r.MatchString(t.Name())
+	var opts recordOpts
+	for _, o := range recs[:len(recs)-1] {
+		switch o {
+		case "f", "force":
+			opts.overwrite = true
+		default:
+			t.Logf("texsting: invalid recording option '%s'", o)
+		}
+	}
+	if r.MatchString(t.Name()) {
+		return &opts
+	}
+	return nil
 }
 
 func (cfg *Config) compare(t *testing.T, hint string, subj io.Reader) (err error) {
@@ -161,7 +186,7 @@ func (cfg *Config) compare(t *testing.T, hint string, subj io.Reader) (err error
 	if filepath.Ext(keepfile) == ".texst" {
 		keepfile = keepfile[:len(keepfile)-6]
 	}
-	k, err := os.CreateTemp(filepath.Dir(keepfile), filepath.Base(keepfile)+".")
+	k, err := os.CreateTemp(filepath.Dir(keepfile), filepath.Base(keepfile)+".texst-")
 	if err != nil {
 		return err
 	}
@@ -176,8 +201,10 @@ func (cfg *Config) compare(t *testing.T, hint string, subj io.Reader) (err error
 
 func (cfg Config) Record(t *testing.T, hint string, subj io.Reader) {
 	reffile := cfg.RefFileName(t, hint)
-	if _, err := os.Stat(reffile); !os.IsNotExist(err) && !cfg.RecordOverwrite {
-		t.Fatalf("TestRecord: reference file '%s' already exists", reffile)
+	if !cfg.RecordOverwrite {
+		if _, err := os.Stat(reffile); err == nil || !os.IsNotExist(err) {
+			t.Fatalf("TestRecord: reference file '%s' already exists", reffile)
+		}
 	}
 	dir := filepath.Dir(reffile)
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
