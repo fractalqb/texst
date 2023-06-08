@@ -6,11 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-
-	"git.fractalqb.de/fractalqb/icontainer/islist"
 )
-
-var _ islist.Node = (*RefLine)(nil)
 
 func TestSegment_sub(t *testing.T) {
 	testCase := func(s, e, exps, expe, splits, splite int) func(*testing.T) {

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"git.fractalqb.de/fractalqb/icontainer/islist"
+	"git.fractalqb.de/fractalqb/icontainer"
 )
 
 // Line Tags
@@ -56,7 +56,7 @@ type Compare struct {
 	OnMismatch MismatchFunc
 
 	igroupLs  []rune
-	igoupRefs map[rune]*islist.List
+	igoupRefs map[rune]*icontainer.SBList[*RefLine]
 	refLine   int
 	sbjLine   int
 	gmasks    map[rune]*maskDefns
@@ -150,7 +150,7 @@ func (cmpr *Compare) cmpr(ref *bufio.Reader, subj *bufio.Scanner) (err error) {
 	if err = cmpr.readPreamble(ref); err != nil {
 		return RefError{Line: cmpr.refLine, err: err}
 	}
-	cmpr.igoupRefs = make(map[rune]*islist.List)
+	cmpr.igoupRefs = make(map[rune]*icontainer.SBList[*RefLine])
 	cmpr.gmasks = make(map[rune]*maskDefns)
 	defer func() {
 		cmpr.igoupRefs = nil
@@ -165,7 +165,7 @@ func (cmpr *Compare) cmpr(ref *bufio.Reader, subj *bufio.Scanner) (err error) {
 			return RefError{Line: cmpr.refLine, err: err}
 		}
 		cmpr.igroupLs = []rune{rl.igroup}
-		cmpr.igoupRefs[rl.igroup] = islist.New(rl)
+		cmpr.igoupRefs[rl.igroup] = icontainer.NewSBList[*RefLine](rl)
 	}
 	misses := 0
 SCAN_NEXT_LINE:
@@ -206,7 +206,7 @@ func (cmpr *Compare) currentRefs() []*RefLine {
 	for _, nm := range cmpr.igroupLs {
 		rls := cmpr.igoupRefs[nm]
 		if rls != nil && rls.Len() > 0 {
-			res = append(res, rls.Front().(*RefLine))
+			res = append(res, rls.Front())
 		}
 	}
 	return res
@@ -228,7 +228,7 @@ func (cmpr *Compare) nextRefLine(igroup rune, rd *bufio.Reader) (*RefLine, error
 					return nil, err
 				}
 				if ls = cmpr.igoupRefs[rl.igroup]; ls == nil {
-					ls = islist.New(rl)
+					ls = icontainer.NewSBList(rl)
 					cmpr.igoupRefs[rl.igroup] = ls
 				} else {
 					ls.PushBack(rl)
@@ -244,7 +244,7 @@ func (cmpr *Compare) nextRefLine(igroup rune, rd *bufio.Reader) (*RefLine, error
 		}
 	}
 	res := ls.Front()
-	return res.(*RefLine), nil
+	return res, nil
 }
 
 func (cmpr *Compare) dropRefLine(rl *RefLine) {
@@ -252,10 +252,10 @@ func (cmpr *Compare) dropRefLine(rl *RefLine) {
 	if ls == nil {
 		panic("dropRefLine: no igroup list")
 	}
-	if ls.Front().(*RefLine) != rl {
+	if ls.Front() != rl {
 		panic("dropRefLine: igroup list-front missmatch")
 	}
-	ls.Drop(1)
+	ls.DropFront(1)
 }
 
 func (cmpr *Compare) readPreamble(ref *bufio.Reader) error {
@@ -290,7 +290,7 @@ func (cmpr *Compare) readGlobals(ref *bufio.Reader) error {
 			if rep, err := segs.set(line[rsz:]); err != nil {
 				return err
 			} else if rep != "" {
-				return errors.New("Redefining global mask line") // TODO more specific?
+				return errors.New("redefining global mask line") // TODO more specific?
 			}
 		default:
 			if !cmpr.isIGroup(tag) {
@@ -304,7 +304,7 @@ func (cmpr *Compare) readGlobals(ref *bufio.Reader) error {
 			if rep, err := segs.set(line[rsz:]); err != nil {
 				return err
 			} else if rep != "" {
-				return errors.New("Redefining global mask line") // TODO more specific?
+				return errors.New("redefining global mask line") // TODO more specific?
 			}
 		}
 		return nil
@@ -340,7 +340,7 @@ func (segs *maskDefns) set(line string) (replaces string, err error) {
 	case ArgRegexp:
 		segs.regexp = append(segs.regexp, line[rsz:])
 	default:
-		err = fmt.Errorf("Unknown mask mode '%c'", mode)
+		err = fmt.Errorf("unknown mask mode '%c'", mode)
 	}
 	return replaces, err
 }

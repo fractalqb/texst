@@ -10,7 +10,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"git.fractalqb.de/fractalqb/icontainer/islist"
+	"git.fractalqb.de/fractalqb/icontainer"
 )
 
 // Types of argument lines
@@ -121,11 +121,11 @@ func (m *mask) sub(s *mask) (split *mask) {
 // RefLine represents a line of reference text with its arguments. API users
 // will get current reference lines when using the MismatchFunc.
 type RefLine struct {
-	igroup   rune
-	text     string
-	masks    []mask
-	srcLn    int
-	islsNext *RefLine
+	igroup rune
+	text   string
+	masks  []mask
+	srcLn  int
+	icontainer.SListNode[*RefLine]
 }
 
 func newRefLine() *RefLine { return new(RefLine) }
@@ -198,9 +198,9 @@ type subjmatch struct{ start, end int }
 func (sm subjmatch) of(line string) (string, error) {
 	switch {
 	case sm.start >= len(line):
-		return "", errors.New("Submatch after line end")
+		return "", errors.New("submatch after line end")
 	case sm.end > len(line):
-		return line[sm.start:], errors.New("Submatch exceeds line")
+		return line[sm.start:], errors.New("submatch exceeds line")
 	}
 	return line[sm.start:sm.end], nil
 }
@@ -478,16 +478,4 @@ func lineHead(line string) (tag byte, igroup rune, tailAt int) {
 	tag = line[0]
 	igroup, tailAt = utf8.DecodeRuneInString(line[1:])
 	return tag, igroup, tailAt + 1
-}
-
-// ListNext to implement intrusive singly linked list
-func (rl *RefLine) ListNext() islist.Node { return rl.islsNext }
-
-// SetListNext to implement intrusive singly linked list
-func (rl *RefLine) SetListNext(n islist.Node) {
-	if n == nil {
-		rl.islsNext = nil
-	} else {
-		rl.islsNext = n.(*RefLine)
-	}
 }
