@@ -1,10 +1,10 @@
 module github.com/fractalqb/texst
 
-go 1.20
+go 1.22
 
 require (
-	git.fractalqb.de/fractalqb/icontainer v0.3.0
-	github.com/spf13/cobra v1.7.0
+	git.fractalqb.de/fractalqb/testerr v0.1.1
+	github.com/spf13/cobra v1.8.1
 )
 
 require (

@@ -1,7 +1,7 @@
 > insgesamt 20
 > drwxr-xr-x 3 marcus marcus 4096 Jun 12 13:16 cmd
 > drwxr-xr-x 2 marcus marcus 4096 Jun 12 15:36 example
- =                                ttt tt ttttt
+ .                                ttt tt ttttt
 > -rw-r--r-- 1 marcus marcus 1401 Jun 12 15:08 reffile.go
 > -rw-r--r-- 1 marcus marcus 3061 Jun 12 15:20 texst.go
 > -rw-r--r-- 1 marcus marcus 1420 Jun 12 14:47 texst_test.go

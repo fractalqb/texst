@@ -1,5 +1,5 @@
-\% w
-*=TTT TT TTTTTTTTTTTT
+%% w
+*.TTT TT TTTTTTTTTTTT
 > Jun 27 18:58:11.112 INFO  [BC+] create `localization dir:test1/test.xCuf/l10n`
  +                                                                    xxxx
 > Jun 27 18:58:11.113 INFO  [goedx] load state from `file:test1/test.xCuf/bcplus.json`

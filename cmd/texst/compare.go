@@ -49,21 +49,25 @@ func checkFile(ref, subj string) bool {
 }
 
 func checkRd(ref, sname string, subj io.Reader) bool {
-	cmpr := texst.Compare{
-		MismatchLimit: rootCmd.mlim,
-		OnMismatch: func(n int, l string, rs []*texst.RefLine) bool {
+	cmpr := texst.Texst{
+		OnMismatch: func(n int, l []byte, ref []*texst.RefLine) error {
 			log.Printf("missmatch in line %d: '%s'\n", n, l)
-			for _, r := range rs {
+			for _, r := range ref {
 				log.Printf("- ref '%c':%s\n", r.IGroup(), r.Text())
 			}
-			return false
+			return nil
 		},
 	}
-	err := cmpr.RefFile(ref, subj)
-	if err == nil {
-		log.Printf("%s matches reference %s\n", sname, ref)
-		return true
+	rrd, err := texst.OpenRefFile(ref)
+	if err != nil {
+		log.Println(err)
+		return false
 	}
-	log.Printf("%s mismatch with %s: %s", sname, ref, err)
-	return false
+	defer rrd.Close()
+	if err = cmpr.Check(rrd, subj); err != nil {
+		log.Printf("%s mismatch with %s: %s", sname, ref, err)
+		return false
+	}
+	log.Printf("%s matches reference %s\n", sname, ref)
+	return true
 }

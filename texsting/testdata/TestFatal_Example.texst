@@ -1,7 +1,9 @@
 # Define two interleaving groups '1' and '2'
-\%12
+%%12
 # Globally mask the segments for timestamps
-*=ttt tt tt tt tt ttt
+*.mmm tt tt tt tt ttt
+*~m [[:upper:]][[:lower:]]{2}
+*?t \d
 # Mask temorary file extensions where they appear
 >1Jun 27 21:58:11.112 INFO  [thread1] create localization dir:test1/test.tmpext/l10n
  +                                                                       xxxxxx

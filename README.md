@@ -28,7 +28,7 @@ text to not match exactly to the subject text:
 
 ```
 > This is some reference text content
- =        xxxx
+ .        xxxx
 ```
 
 The above example says that the four runes above the non-space part of
@@ -46,15 +46,15 @@ the next non-argument line.
 
 ```
 > This is some reference text content
- =        xxxx
- =                       yyyy
+ .        xxxx
+ .                       yyyy
 ```
 
 would be the same as
 
 ```
 > This is some reference text content
- =        xxxx           yyyy
+ .        xxxx           yyyy
 ```
 
 For some files, e.g. log files, it would be rather tedious if one had

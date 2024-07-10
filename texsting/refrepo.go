@@ -27,15 +27,14 @@
 package texsting
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"testing"
-	"unicode/utf8"
 
 	"github.com/fractalqb/texst"
 )
@@ -167,9 +166,9 @@ func recodTest(t *testing.T) *recordOpts {
 }
 
 func (cfg *Config) compare(t *testing.T, hint string, subj io.Reader) (err error) {
-	cmpr := &texst.Compare{
-		MismatchLimit: cfg.MismatchLimit,
-		OnMismatch:    MismatchError(t, hint, false),
+	cmpr := &texst.Texst{OnMismatch: MismatchError(t, hint, false)}
+	if testing.Verbose() {
+		cmpr.OnMatch = MatchLog(t, hint)
 	}
 	reffile := cfg.RefFileName(t, hint)
 	if _, err := os.Stat(reffile); os.IsNotExist(err) {
@@ -179,8 +178,13 @@ func (cfg *Config) compare(t *testing.T, hint string, subj io.Reader) (err error
 		)
 		return fmt.Errorf("reference texst file %s does not exists", reffile)
 	}
+	ref, err := texst.OpenRefFile(reffile)
+	if err != nil {
+		return err
+	}
+	defer ref.Close()
 	if !cfg.KeepSubject {
-		return cmpr.RefFile(reffile, subj)
+		return cmpr.Check(ref, subj)
 	}
 	keepfile := reffile
 	if filepath.Ext(keepfile) == ".texst" {
@@ -196,7 +200,7 @@ func (cfg *Config) compare(t *testing.T, hint string, subj io.Reader) (err error
 			os.Remove(k.Name())
 		}
 	}()
-	return cmpr.RefFile(reffile, io.TeeReader(subj, k))
+	return cmpr.Check(ref, io.TeeReader(subj, k))
 }
 
 func (cfg Config) Record(t *testing.T, hint string, subj io.Reader) {
@@ -225,16 +229,44 @@ func (cfg Config) Record(t *testing.T, hint string, subj io.Reader) {
 
 func MismatchError(t *testing.T, hint string, abort bool) texst.MismatchFunc {
 	if hint == "" {
-		hint = "subject"
+		hint = t.Name()
 	}
-	return func(ln int, l string, rln []*texst.RefLine) bool {
-		lnstr := strconv.Itoa(ln)
-		t.Errorf("%s:%s [%s]", hint, lnstr, l)
-		padlen := utf8.RuneCountInString(hint) + len(lnstr)
-		pad := strings.Repeat(" ", padlen)
-		for _, r := range rln {
-			t.Logf("%s%c [%s]", pad, r.IGroup(), r.Text())
+	return func(n int, l []byte, ref []*texst.RefLine) (err error) {
+		var sb strings.Builder
+		fmt.Fprintf(&sb, "mismatch %s:%d [%s]", hint, n, string(l))
+		subj := sb.String()
+		sb.WriteString(" ref:")
+		for _, r := range ref {
+			fmt.Fprintf(&sb, " %d", r.SourceLine())
 		}
-		return abort
+		err = errors.New(sb.String())
+		sb.Reset()
+		sb.WriteString(subj)
+		for _, r := range ref {
+			fmt.Fprintf(&sb, "\n%s:%d>%c[%s]",
+				r.SourceName(),
+				r.SourceLine(),
+				r.IGroup(),
+				r.Text(),
+			)
+		}
+		t.Error(sb.String())
+		if abort {
+			return err
+		}
+		return nil
+	}
+}
+
+func MatchLog(t *testing.T, hint string) texst.MatchFunc {
+	if hint == "" {
+		hint = t.Name()
+	}
+	return func(n int, l []byte, ref *texst.RefLine, match []int) error {
+		if hint == "" {
+			hint = ref.SourceName()
+		}
+		t.Logf("match %s:%d with %s:%d", hint, n, ref.SourceName(), ref.SourceLine())
+		return nil
 	}
 }
