@@ -33,7 +33,7 @@ text to not match exactly to the subject text:
 
 The above example says that the four runes above the non-space part of
 the argument line, i.e. "some", are not compared to the checked
-text. The '=' identifies the specific type of argument line (see Types
+text. The '.' identifies the specific type of argument line (see Types
 of argument lines). So the text
 
 ```
@@ -71,7 +71,7 @@ between reference text specifications. For our example one would
 write:
 
 ```
-*=ttt tt tt tt tt ttt
+*.ttt tt tt tt tt ttt
 > Jun 27 21:58:11.112 INFO  [thread1] create `localization dir:test1/test.xCuf/l10n`
 > Jun 27 21:58:11.113 INFO  [thread2] load state from `file:test1/test.xCuf/bcplus.json`
 > Jun 27 18:58:11.125 DEBUG [thread1] clearing maps
@@ -87,8 +87,8 @@ We declare two “interleaving groups” '1' and '2' in the preamble and
 mark the reference text lines to be in the specific group:
 
 ```
-\%12
-*=ttt tt tt tt tt ttt
+%%12
+*.ttt tt tt tt tt ttt
 >1Jun 27 21:58:11.112 INFO  [thread1] create `localization dir:test1/test.xCuf/l10n`
 >2Jun 27 21:58:11.113 INFO  [thread2] load state from `file:test1/test.xCuf/bcplus.json`
 >1Jun 27 18:58:11.125 DEBUG [thread1] clearing maps

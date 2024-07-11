@@ -14,6 +14,7 @@ const (
 	// Marks a comment line.
 	TagComment = '#'
 
+	// Preamble line regarding interleaving groups.
 	TagIGroup = '%'
 
 	// Global argument line
@@ -47,42 +48,42 @@ func lineErrorf(ref RefDoc, form string, args ...any) error {
 	return errors.New(sb.String())
 }
 
-type MismatchFunc func(testedNo int, testedLine []byte, ref []*RefLine) error
-type MatchFunc func(testedNo int, testedLine []byte, ref *RefLine, match []int) error
+type MismatchFunc func(testedNo int, testedLine []byte, ref []*RefLine)
+type MatchFunc func(testedNo int, testedLine []byte, ref *RefLine, match []int)
 
 type Texst struct {
-	OnMismatch MismatchFunc
-	OnMatch    MatchFunc
+	MismatchLimit int
+	OnMismatch    MismatchFunc
+	OnMatch       MatchFunc
 }
 
-func (txs *Texst) mismatch(lno int, line []byte, ref []*RefLine) error {
-	if txs.OnMismatch == nil {
-		return nil
+func (txs *Texst) mismatch(lno int, line []byte, ref []*RefLine) {
+	if txs.OnMismatch != nil {
+		txs.OnMismatch(lno, line, ref)
 	}
-	return txs.OnMismatch(lno, line, ref)
 }
 
-func (txs *Texst) match(lno int, line []byte, ref *RefLine, match []int) error {
-	if txs.OnMatch == nil {
-		return nil
+func (txs *Texst) match(lno int, line []byte, ref *RefLine, match []int) {
+	if txs.OnMatch != nil {
+		txs.OnMatch(lno, line, ref, match)
 	}
-	return txs.OnMatch(lno, line, ref, match)
 }
 
-func (txs *Texst) Check(reference RefDoc, subject io.Reader) error {
+func (txs *Texst) Check(reference RefDoc, subject io.Reader) (int, error) {
 	igBacklog := make([]refLineQ, len(reference.IGroups()))
 	subjScan := bufio.NewScanner(subject)
 	subjLine := 0
+	mismatchCount := 0
 	var mismatch []*RefLine
 	for subjScan.Scan() {
 		subjLine++
 		if err := fillIGBacklog(reference, igBacklog); errors.Is(err, io.EOF) {
-			return lineErrorf(reference,
+			return mismatchCount, lineErrorf(reference,
 				"subject line %d exceeds reference text",
 				subjLine,
 			)
 		} else if err != nil {
-			return err
+			return mismatchCount, err
 		}
 		var (
 			matchLine  *RefLine
@@ -126,19 +127,17 @@ func (txs *Texst) Check(reference RefDoc, subject io.Reader) error {
 			}
 		}
 		if matchLine == nil {
-			err := txs.mismatch(subjLine, subjScan.Bytes(), mismatch)
-			if err != nil {
-				return err
+			txs.mismatch(subjLine, subjScan.Bytes(), mismatch)
+			mismatchCount++
+			if txs.MismatchLimit > 0 && mismatchCount >= txs.MismatchLimit {
+				break
 			}
 		} else {
-			err := txs.match(subjLine, subjScan.Bytes(), matchLine, regexMatch)
+			txs.match(subjLine, subjScan.Bytes(), matchLine, regexMatch)
 			reference.FreeLine(matchLine)
-			if err != nil {
-				return err
-			}
 		}
 	}
-	return nil
+	return mismatchCount, nil
 }
 
 func fillIGBacklog(ref RefDoc, igbl []refLineQ) error {

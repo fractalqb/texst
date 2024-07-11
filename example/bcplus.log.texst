@@ -1,4 +1,4 @@
-*=TTTTTTTTTTTTTTTTTTT
+*.TTT TT TT TT TT TTT
 > Jun 30 18:55:52.901 INFO  [BC+] create `localization dir:test1/test.Ind9/l10n`
  .                                                                    nnnn
 > Jun 30 18:55:52.901 INFO  [goedx] load state from `file:test1/test.Ind9/bcplus.json`

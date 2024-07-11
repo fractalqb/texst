@@ -224,7 +224,7 @@ func (rr *RefReader) segments(rl *lineTemplate, st segType, l []byte) error {
 			continue
 		}
 		if !unicode.IsSpace(name) {
-			s := &segment{
+			s := &Segment{
 				name:  name,
 				typ:   st,
 				start: start,
@@ -238,7 +238,7 @@ func (rr *RefReader) segments(rl *lineTemplate, st segType, l []byte) error {
 		start = i
 	}
 	if !unicode.IsSpace(name) {
-		s := &segment{
+		s := &Segment{
 			name:  name,
 			typ:   st,
 			start: start,

@@ -10,7 +10,7 @@ func TestLineSepScanner_crnl(t *testing.T) {
 	t.Run("between lines", func(t *testing.T) {
 		rd := strings.NewReader("line1\r\nline2")
 		scn := bufio.NewScanner(rd)
-		var sep LineSepScanner
+		var sep lineSepScanner
 		scn.Split(sep.ScanLines)
 		line := 0
 		for scn.Scan() {
@@ -39,7 +39,7 @@ func TestLineSepScanner_crnl(t *testing.T) {
 	t.Run("last line", func(t *testing.T) {
 		rd := strings.NewReader("line1\r\n")
 		scn := bufio.NewScanner(rd)
-		var sep LineSepScanner
+		var sep lineSepScanner
 		scn.Split(sep.ScanLines)
 		line := 0
 		for scn.Scan() {
@@ -64,7 +64,7 @@ func TestLineSepScanner_nl(t *testing.T) {
 	t.Run("between lines", func(t *testing.T) {
 		rd := strings.NewReader("line1\nline2")
 		scn := bufio.NewScanner(rd)
-		var sep LineSepScanner
+		var sep lineSepScanner
 		scn.Split(sep.ScanLines)
 		line := 0
 		for scn.Scan() {
@@ -93,7 +93,7 @@ func TestLineSepScanner_nl(t *testing.T) {
 	t.Run("last line", func(t *testing.T) {
 		rd := strings.NewReader("line1\n")
 		scn := bufio.NewScanner(rd)
-		var sep LineSepScanner
+		var sep lineSepScanner
 		scn.Split(sep.ScanLines)
 		line := 0
 		for scn.Scan() {

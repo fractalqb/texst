@@ -12,14 +12,11 @@ func ExampleTexst() {
 		fmt.Println(err)
 		return
 	}
-	mismatchCount := 0
 	vrf := Texst{
-		OnMismatch: func(tiLNo int, tiLine []byte, _ []*RefLine) error {
-			mismatchCount++
+		OnMismatch: func(tiLNo int, tiLine []byte, _ []*RefLine) {
 			fmt.Printf("input:%d [%s]\n", tiLNo, tiLine)
-			return nil
 		},
-		OnMatch: func(tiLNo int, line []byte, _ *RefLine, match []int) error {
+		OnMatch: func(tiLNo int, line []byte, _ *RefLine, match []int) {
 			txt := func(i int) string {
 				i *= 2
 				part := line[match[i]:match[i+1]]
@@ -30,10 +27,9 @@ func ExampleTexst() {
 				fmt.Printf(" %d=[%s]", i, txt(i+1))
 			}
 			fmt.Println()
-			return nil
 		},
 	}
-	err = vrf.Check(ref, strings.NewReader(
+	mismatchCount, err := vrf.Check(ref, strings.NewReader(
 		`foo bar baz`,
 	))
 	if err != nil {

@@ -4,12 +4,37 @@ import (
 	"bufio"
 	"bytes"
 	"io"
-	"os"
 )
 
-type LineSepScanner []byte
+type Prepare struct {
+	DefaultIGroup rune
+}
 
-func (lsc *LineSepScanner) ScanLines(data []byte, atEOF bool) (advance int, token []byte, err error) {
+func (p Prepare) Text(ref io.Writer, subj io.Reader) (err error) {
+	if p.DefaultIGroup == 0 {
+		p.DefaultIGroup = ' '
+	}
+	var sep lineSepScanner
+	scn := bufio.NewScanner(subj)
+	scn.Split(sep.ScanLines)
+	prefix := []byte{TagRefLine, byte(p.DefaultIGroup)}
+	for scn.Scan() {
+		if _, err = ref.Write(prefix); err != nil {
+			return err
+		}
+		if _, err = ref.Write(scn.Bytes()); err != nil {
+			return err
+		}
+		if _, err = ref.Write(sep); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type lineSepScanner []byte
+
+func (lsc *lineSepScanner) ScanLines(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	// modificated version of bufio.Scan
 	if atEOF && len(data) == 0 {
 		return 0, nil, nil
@@ -33,31 +58,4 @@ func dropCR(data []byte) ([]byte, int) {
 		return data[0 : len(data)-1], 1
 	}
 	return data, 0
-}
-
-func Prepare(prepared io.Writer, subj io.Reader) (err error) {
-	var sep LineSepScanner
-	scn := bufio.NewScanner(subj)
-	scn.Split(sep.ScanLines)
-	prefix := []byte{TagRefLine, ' '}
-	for scn.Scan() {
-		if _, err = prepared.Write(prefix); err != nil {
-			return err
-		}
-		if _, err = prepared.Write(scn.Bytes()); err != nil {
-			return err
-		}
-		if _, err = prepared.Write(sep); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func PrepareFile(prepared string, subj io.Reader) error {
-	wr, err := os.Create(prepared)
-	if err != nil {
-		return err
-	}
-	return Prepare(wr, subj)
 }

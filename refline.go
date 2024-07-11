@@ -16,8 +16,9 @@ type RefLine struct {
 	lsNext *RefLine
 }
 
-func (rl *RefLine) IGroup() rune { return rl.igName }
-func (rl *RefLine) Text() string { return rl.text }
+func (rl *RefLine) IGroup() rune   { return rl.igName }
+func (rl *RefLine) Text() string   { return rl.text }
+func (rl *RefLine) Regexp() string { return rl.rgx.String() }
 
 func (rl *RefLine) match(line []byte) (match []int) {
 	match = rl.rgx.FindSubmatchIndex(line)
@@ -44,13 +45,14 @@ func (rl *RefLine) regexp() string {
 type lineTemplate struct {
 	srcName string
 	srcLine int
-	segs    []*segment
+	segs    []*Segment
 }
 
-func (rl *lineTemplate) SourceName() string { return rl.srcName }
-func (rl *lineTemplate) SourceLine() int    { return rl.srcLine }
+func (rl *lineTemplate) SourceName() string   { return rl.srcName }
+func (rl *lineTemplate) SourceLine() int      { return rl.srcLine }
+func (rl *lineTemplate) Segments() []*Segment { return rl.segs } // TODO return []Segment?
 
-func (rl *lineTemplate) addSeg(s *segment) error {
+func (rl *lineTemplate) addSeg(s *Segment) error {
 	if s.empty() {
 		return fmt.Errorf("segment %s is empty", s)
 	}
@@ -85,7 +87,7 @@ func parseSegType(r rune) (segType, error) {
 	return segType(st), nil
 }
 
-type segment struct {
+type Segment struct {
 	name       rune
 	typ        segType
 	start, len int
@@ -93,11 +95,14 @@ type segment struct {
 	checks     []SegChecker
 }
 
-func (s *segment) empty() bool { return s.len == 0 }
+func (s *Segment) Start() int { return s.start }
+func (s *Segment) Len() int   { return s.len }
 
-func (s *segment) end() int { return s.start + s.len }
+func (s *Segment) empty() bool { return s.len == 0 }
 
-func (s *segment) overlap(with *segment) (start, len int) {
+func (s *Segment) end() int { return s.start + s.len }
+
+func (s *Segment) overlap(with *Segment) (start, len int) {
 	se, we := s.start+s.len, with.start+with.len
 	if s.start <= with.start {
 		start = with.start
@@ -113,7 +118,7 @@ func (s *segment) overlap(with *segment) (start, len int) {
 	return
 }
 
-func (s *segment) writeRegexp(w io.Writer) {
+func (s *Segment) writeRegexp(w io.Writer) {
 	class := "."
 	if s.match != "" {
 		class = s.match
@@ -138,7 +143,7 @@ func (s *segment) writeRegexp(w io.Writer) {
 	}
 }
 
-func (s *segment) String() string {
+func (s *Segment) String() string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "[%c:%d+%d", s.name, s.start, s.len)
 	if s.match != "" {
@@ -148,7 +153,7 @@ func (s *segment) String() string {
 	return sb.String()
 }
 
-func segCmpr(s, t *segment) int { return s.start - t.start }
+func segCmpr(s, t *Segment) int { return s.start - t.start }
 
 type SegChecker interface {
 	Check(seg []byte) error

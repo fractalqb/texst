@@ -1,69 +1,70 @@
 package main
 
 import (
-	"bufio"
+	"flag"
 	"fmt"
-	"io"
 	"log"
 	"os"
 
-	"github.com/spf13/cobra"
-
+	"github.com/fractalqb/texst"
 	"github.com/fractalqb/texst/texsting"
 )
 
-func init() {
-	prepareCmd.Run = prepareFiles
-	prepareCmd.Flags().StringVarP(
-		&prepareCmd.suffix,
-		"suffix", "s",
-		prepareCmd.suffix,
-		"Set file suffix for created reference text files")
-	prepareCmd.Flags().BoolVarP(
-		&prepareCmd.force,
-		"force", "f",
-		prepareCmd.force,
-		"Force to overwrite existing reference files")
-	rootCmd.AddCommand(&prepareCmd.Command)
-}
-
-var prepareCmd = struct {
-	cobra.Command
+type prepareCmd struct {
+	texst.Prepare
 	suffix string
 	force  bool
-}{
-	Command: cobra.Command{
-		Use:   "prepare",
-		Short: "Prepare basic reference text file",
-	},
-	suffix: texsting.StdSuffix,
-	force:  false,
 }
 
-func prepareFiles(cmd *cobra.Command, files []string) {
+var cmdPrepare = prepareCmd{
+	suffix: texsting.StdSuffix,
+}
+
+func (cmd *prepareCmd) usage(flags *flag.FlagSet) func() {
+	return func() {
+		w := flags.Output()
+		fmt.Fprint(w, `Prepare a reference text file from an example subject
+
+Usage: texst prepare [flags] <subject>...
+
+FLAGS
+`)
+		flags.PrintDefaults()
+	}
+}
+
+func (cmd *prepareCmd) run(args []string) {
+	args = cmd.flags(args)
+	cmd.prepareFiles(args)
+}
+
+func (cmd *prepareCmd) flags(args []string) []string {
+	flags := flag.NewFlagSet(args[0], flag.ExitOnError)
+	flags.Usage = cmd.usage(flags)
+	flags.StringVar(&cmd.suffix, "s", cmd.suffix,
+		`Set file suffix for created reference text files`,
+	)
+	flags.BoolVar(&cmd.force, "f", cmd.force,
+		`Force to overwrite existing reference files`,
+	)
+	flags.Parse(args[1:])
+	return flags.Args()
+}
+
+func (cmd *prepareCmd) prepareFiles(files []string) {
 	if len(files) == 0 {
-		prepare(os.Stdin, os.Stdout)
+		cmd.Text(os.Stdout, os.Stdin)
 	} else {
 		for _, f := range files {
-			prepareFile(f)
+			cmd.prepareFile(f)
 		}
 	}
 }
 
-func prepare(rd io.Reader, wr io.Writer) {
-	prefix := []byte{'>', ' '}
-	scn := bufio.NewScanner(rd)
-	for scn.Scan() {
-		wr.Write(prefix)
-		wr.Write(scn.Bytes())
-		fmt.Fprintln(wr)
-	}
-}
-
-func prepareFile(name string) {
-	texstfile := name + ".texst"
+func (cmd *prepareCmd) prepareFile(name string) {
+	texstfile := name + cmd.suffix
 	if _, err := os.Stat(texstfile); !os.IsNotExist(err) {
-		if !prepareCmd.force {
+		if !cmd.force {
 			log.Fatalf("%s already exists", texstfile)
 		}
 	}
@@ -71,5 +72,5 @@ func prepareFile(name string) {
 	defer rd.Close()
 	wr, _ := os.Create(texstfile)
 	defer wr.Close()
-	prepare(rd, wr)
+	cmd.Text(wr, rd)
 }

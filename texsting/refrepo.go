@@ -27,7 +27,6 @@
 package texsting
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -112,9 +111,11 @@ func (cfg Config) Error(t *testing.T, hint string, subj io.Reader) error {
 		tcfg.Record(t, hint, subj)
 		return nil
 	} else {
-		err := cfg.compare(t, hint, subj)
+		mis, err := cfg.compare(t, hint, subj)
 		if err != nil {
 			t.Error(err)
+		} else if mis > 0 {
+			t.Errorf("%d mismatches", mis)
 		}
 		return err
 	}
@@ -128,9 +129,11 @@ func (cfg Config) Fatal(t *testing.T, hint string, subj io.Reader) {
 		}
 		tcfg.Record(t, hint, subj)
 	} else {
-		err := cfg.compare(t, hint, subj)
+		mis, err := cfg.compare(t, hint, subj)
 		if err != nil {
 			t.Fatal(err)
+		} else if mis > 0 {
+			t.Fatalf("%d mismatches", mis)
 		}
 	}
 }
@@ -165,8 +168,8 @@ func recodTest(t *testing.T) *recordOpts {
 	return nil
 }
 
-func (cfg *Config) compare(t *testing.T, hint string, subj io.Reader) (err error) {
-	cmpr := &texst.Texst{OnMismatch: MismatchError(t, hint, false)}
+func (cfg *Config) compare(t *testing.T, hint string, subj io.Reader) (misNo int, err error) {
+	cmpr := &texst.Texst{OnMismatch: MismatchError(t, hint)}
 	if testing.Verbose() {
 		cmpr.OnMatch = MatchLog(t, hint)
 	}
@@ -176,11 +179,11 @@ func (cfg *Config) compare(t *testing.T, hint string, subj io.Reader) (err error
 			RecordEnv,
 			t.Name(),
 		)
-		return fmt.Errorf("reference texst file %s does not exists", reffile)
+		return 0, fmt.Errorf("reference texst file %s does not exists", reffile)
 	}
 	ref, err := texst.OpenRefFile(reffile)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer ref.Close()
 	if !cfg.KeepSubject {
@@ -192,7 +195,7 @@ func (cfg *Config) compare(t *testing.T, hint string, subj io.Reader) (err error
 	}
 	k, err := os.CreateTemp(filepath.Dir(keepfile), filepath.Base(keepfile)+".texst-")
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer func() {
 		k.Close()
@@ -221,27 +224,19 @@ func (cfg Config) Record(t *testing.T, hint string, subj io.Reader) {
 		t.Fatal(err)
 	}
 	defer wr.Close()
-	if err = texst.Prepare(wr, subj); err != nil {
+	if err = (texst.Prepare{}).Text(wr, subj); err != nil {
 		t.Error(err)
 	}
 	t.Errorf("texst test-recorder wrote: %s", reffile)
 }
 
-func MismatchError(t *testing.T, hint string, abort bool) texst.MismatchFunc {
+func MismatchError(t *testing.T, hint string) texst.MismatchFunc {
 	if hint == "" {
 		hint = t.Name()
 	}
-	return func(n int, l []byte, ref []*texst.RefLine) (err error) {
+	return func(n int, l []byte, ref []*texst.RefLine) {
 		var sb strings.Builder
 		fmt.Fprintf(&sb, "mismatch %s:%d [%s]", hint, n, string(l))
-		subj := sb.String()
-		sb.WriteString(" ref:")
-		for _, r := range ref {
-			fmt.Fprintf(&sb, " %d", r.SourceLine())
-		}
-		err = errors.New(sb.String())
-		sb.Reset()
-		sb.WriteString(subj)
 		for _, r := range ref {
 			fmt.Fprintf(&sb, "\n%s:%d>%c[%s]",
 				r.SourceName(),
@@ -251,10 +246,6 @@ func MismatchError(t *testing.T, hint string, abort bool) texst.MismatchFunc {
 			)
 		}
 		t.Error(sb.String())
-		if abort {
-			return err
-		}
-		return nil
 	}
 }
 
@@ -262,11 +253,10 @@ func MatchLog(t *testing.T, hint string) texst.MatchFunc {
 	if hint == "" {
 		hint = t.Name()
 	}
-	return func(n int, l []byte, ref *texst.RefLine, match []int) error {
+	return func(n int, l []byte, ref *texst.RefLine, match []int) {
 		if hint == "" {
 			hint = ref.SourceName()
 		}
 		t.Logf("match %s:%d with %s:%d", hint, n, ref.SourceName(), ref.SourceLine())
-		return nil
 	}
 }
