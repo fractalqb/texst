@@ -30,7 +30,7 @@ func (rl *RefLine) regexp() string {
 	sb.WriteRune('^')
 	ln := []rune(rl.text)
 	lidx := 0
-	for _, seg := range rl.segs {
+	for _, seg := range rl.masks {
 		if lidx < seg.start {
 			sb.WriteString(regexp.QuoteMeta(string(ln[lidx:seg.start])))
 		}
@@ -45,64 +45,64 @@ func (rl *RefLine) regexp() string {
 type lineTemplate struct {
 	srcName string
 	srcLine int
-	segs    []*Segment
+	masks   []*Mask
 }
 
-func (rl *lineTemplate) SourceName() string   { return rl.srcName }
-func (rl *lineTemplate) SourceLine() int      { return rl.srcLine }
-func (rl *lineTemplate) Segments() []*Segment { return rl.segs } // TODO return []Segment?
+func (rl *lineTemplate) SourceName() string { return rl.srcName }
+func (rl *lineTemplate) SourceLine() int    { return rl.srcLine }
+func (rl *lineTemplate) Masks() []*Mask     { return rl.masks } // TODO return []Mask?
 
-func (rl *lineTemplate) addSeg(s *Segment) error {
+func (rl *lineTemplate) addMask(s *Mask) error {
 	if s.empty() {
-		return fmt.Errorf("segment %s is empty", s)
+		return fmt.Errorf("mask %s is empty", s)
 	}
-	for _, es := range rl.segs {
+	for _, es := range rl.masks {
 		if _, ol := es.overlap(s); ol > 0 {
-			return fmt.Errorf("segment %s overlaps %s", s, es)
+			return fmt.Errorf("mask %s overlaps %s", s, es)
 		}
 	}
-	ins, _ := slices.BinarySearchFunc(rl.segs, s, segCmpr)
-	rl.segs = slices.Insert(rl.segs, ins, s)
+	ins, _ := slices.BinarySearchFunc(rl.masks, s, segCmpr)
+	rl.masks = slices.Insert(rl.masks, ins, s)
 	return nil
 }
 
-type segType int32
+type maskType int32
 
 const (
-	segFix     segType = iota // .
-	seg0OrMore                // *
-	seg1OrMore                // +
-	seg0UpTo                  // 0
-	seg1UpTo                  // 1
-	segAtLeast                // -
-	segMatch                  // ~
-	segClass                  // ?
+	maskFix     maskType = iota // .
+	mask0OrMore                 // *
+	mask1OrMore                 // +
+	mask0UpTo                   // 0
+	mask1UpTo                   // 1
+	maskAtLeast                 // -
+	maskClass                   // ?
+	maskMatch                   // ~
 )
 
-func parseSegType(r rune) (segType, error) {
-	st := strings.IndexRune(".*+01-~?", r)
+func parseMaskType(r rune) (maskType, error) {
+	st := strings.IndexRune(".*+01-?~", r)
 	if st < 0 {
-		return segType(-1), fmt.Errorf("illegal segemnt type '%c'", r)
+		return maskType(-1), fmt.Errorf("illegal mask type '%c'", r)
 	}
-	return segType(st), nil
+	return maskType(st), nil
 }
 
-type Segment struct {
+type Mask struct {
 	name       rune
-	typ        segType
+	typ        maskType
 	start, len int
 	match      string
 	checks     []SegChecker
 }
 
-func (s *Segment) Start() int { return s.start }
-func (s *Segment) Len() int   { return s.len }
+func (s *Mask) Start() int { return s.start }
+func (s *Mask) Len() int   { return s.len }
 
-func (s *Segment) empty() bool { return s.len == 0 }
+func (s *Mask) empty() bool { return s.len == 0 }
 
-func (s *Segment) end() int { return s.start + s.len }
+func (s *Mask) end() int { return s.start + s.len }
 
-func (s *Segment) overlap(with *Segment) (start, len int) {
+func (s *Mask) overlap(with *Mask) (start, len int) {
 	se, we := s.start+s.len, with.start+with.len
 	if s.start <= with.start {
 		start = with.start
@@ -118,32 +118,32 @@ func (s *Segment) overlap(with *Segment) (start, len int) {
 	return
 }
 
-func (s *Segment) writeRegexp(w io.Writer) {
+func (s *Mask) writeRegexp(w io.Writer) {
 	class := "."
 	if s.match != "" {
 		class = s.match
 	}
 	switch s.typ {
-	case segFix:
+	case maskFix:
 		fmt.Fprintf(w, "(%s{%d})", class, s.len)
-	case seg0OrMore:
+	case mask0OrMore:
 		fmt.Fprintf(w, "(%s{0,})", class)
-	case seg1OrMore:
+	case mask1OrMore:
 		fmt.Fprintf(w, "(%s{1,})", class)
-	case seg0UpTo:
+	case mask0UpTo:
 		fmt.Fprintf(w, "(%s{0,%d})", class, s.len)
-	case seg1UpTo:
+	case mask1UpTo:
 		fmt.Fprintf(w, "(%s{1,%d})", class, s.len)
-	case segAtLeast:
+	case maskAtLeast:
 		fmt.Fprintf(w, "(%s{%d,})", class, s.len)
-	case segMatch:
+	case maskMatch:
 		fmt.Fprintf(w, "(%s)", s.match)
 	default:
-		panic(fmt.Sprintf("segment.writeRegexp(): illegal typ %d", s.typ))
+		panic(fmt.Sprintf("Mask.writeRegexp(): illegal typ %d", s.typ))
 	}
 }
 
-func (s *Segment) String() string {
+func (s *Mask) String() string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "[%c:%d+%d", s.name, s.start, s.len)
 	if s.match != "" {
@@ -153,7 +153,7 @@ func (s *Segment) String() string {
 	return sb.String()
 }
 
-func segCmpr(s, t *Segment) int { return s.start - t.start }
+func segCmpr(s, t *Mask) int { return s.start - t.start }
 
 type SegChecker interface {
 	Check(seg []byte) error

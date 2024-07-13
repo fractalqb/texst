@@ -93,7 +93,7 @@ func (rr *RefReader) NextLine() (*RefLine, error) {
 	rr.ll = nil
 	rl := rr.newLine(c1, string(line))
 	if rr.globLT != nil {
-		rl.segs = slices.Clone(rr.globLT.segs)
+		rl.masks = slices.Clone(rr.globLT.masks)
 	}
 	err = rr.argLines(&rl.lineTemplate)
 	if err != nil && !errors.Is(err, io.EOF) {
@@ -128,6 +128,7 @@ func (rr *RefReader) newLine(ig rune, txt string) (rl *RefLine) {
 		rl.srcLine = rr.Line()
 		rl.igName = ig
 		rl.text = txt
+		rl.lsNext = nil
 	}
 	return rl
 }
@@ -145,21 +146,21 @@ func (rr *RefReader) argLines(rl *lineTemplate) error {
 			break
 		}
 		rr.ll = nil
-		segType, err := parseSegType(c1)
+		segType, err := parseMaskType(c1)
 		if err != nil {
 			return fmt.Errorf("arg line: %w", err)
 		}
 		switch segType {
-		case segMatch:
+		case maskMatch:
 			if err = rr.match(rl, line); err != nil {
 				return err
 			}
-		case segClass:
+		case maskClass:
 			if err = rr.class(rl, line); err != nil {
 				return err
 			}
 		default:
-			if err = rr.segments(rl, segType, line); err != nil {
+			if err = rr.masks(rl, segType, line); err != nil {
 				return err
 			}
 		}
@@ -170,16 +171,16 @@ func (rr *RefReader) argLines(rl *lineTemplate) error {
 func (rr *RefReader) class(rl *lineTemplate, line []byte) error {
 	nm, sz := utf8.DecodeRune(line)
 	if nm == utf8.RuneError {
-		return lineErrorf(rr, "rune error for segment name")
+		return lineErrorf(rr, "rune error for mask name")
 	}
 	line = bytes.TrimSpace(line[sz:])
-	for _, seg := range rl.segs {
+	for _, seg := range rl.masks {
 		if seg.name != nm {
 			continue
 		}
-		if seg.typ == segMatch {
+		if seg.typ == maskMatch {
 			return lineErrorf(rr,
-				"must not set rune class on match segment '%c'",
+				"must not set rune class on matching mask '%c'",
 				nm,
 			)
 		}
@@ -191,26 +192,26 @@ func (rr *RefReader) class(rl *lineTemplate, line []byte) error {
 func (rr *RefReader) match(rl *lineTemplate, line []byte) error {
 	nm, sz := utf8.DecodeRune(line)
 	if nm == utf8.RuneError {
-		return lineErrorf(rr, "rune error for segment name")
+		return lineErrorf(rr, "rune error for mask name")
 	}
 	line = bytes.TrimSpace(line[sz:])
-	for _, seg := range rl.segs {
+	for _, seg := range rl.masks {
 		if seg.name != nm {
 			continue
 		}
-		if seg.typ != segFix {
+		if seg.typ != maskFix {
 			return lineErrorf(rr,
 				"must not match segemnt '%c' with length constraint",
 				nm,
 			)
 		}
-		seg.typ = segMatch
+		seg.typ = maskMatch
 		seg.match = string(line)
 	}
 	return nil
 }
 
-func (rr *RefReader) segments(rl *lineTemplate, st segType, l []byte) error {
+func (rr *RefReader) masks(rl *lineTemplate, st maskType, l []byte) error {
 	name := ' '
 	start, length := 0, 0
 	for i := 0; len(l) > 0; i++ {
@@ -224,13 +225,13 @@ func (rr *RefReader) segments(rl *lineTemplate, st segType, l []byte) error {
 			continue
 		}
 		if !unicode.IsSpace(name) {
-			s := &Segment{
+			s := &Mask{
 				name:  name,
 				typ:   st,
 				start: start,
 				len:   i - start,
 			}
-			if err := rl.addSeg(s); err != nil {
+			if err := rl.addMask(s); err != nil {
 				return err
 			}
 		}
@@ -238,13 +239,13 @@ func (rr *RefReader) segments(rl *lineTemplate, st segType, l []byte) error {
 		start = i
 	}
 	if !unicode.IsSpace(name) {
-		s := &Segment{
+		s := &Mask{
 			name:  name,
 			typ:   st,
 			start: start,
 			len:   length - start,
 		}
-		if err := rl.addSeg(s); err != nil {
+		if err := rl.addMask(s); err != nil {
 			return err
 		}
 	}
@@ -267,7 +268,7 @@ func (rr *RefReader) preamble() error {
 		}
 		switch c0 {
 		case TagGlobalArg:
-			segType, err := parseSegType(c1)
+			segType, err := parseMaskType(c1)
 			if err != nil {
 				return err
 			}
@@ -275,16 +276,16 @@ func (rr *RefReader) preamble() error {
 				rr.globLT = &lineTemplate{srcName: rr.Name(), srcLine: rr.Line()}
 			}
 			switch segType {
-			case segMatch:
+			case maskMatch:
 				if err := rr.match(rr.globLT, line); err != nil {
 					return err
 				}
-			case segClass:
+			case maskClass:
 				if err = rr.class(rr.globLT, line); err != nil {
 					return err
 				}
 			default:
-				if err = rr.segments(rr.globLT, segType, line); err != nil {
+				if err = rr.masks(rr.globLT, segType, line); err != nil {
 					return err
 				}
 			}

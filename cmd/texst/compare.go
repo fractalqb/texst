@@ -127,7 +127,7 @@ func (cmd *compareCmd) onMismatch(n int, l []byte, ref []*texst.RefLine) {
 }
 
 func withMasks(rl *texst.RefLine, sl []byte) string {
-	segs := rl.Segments()
+	segs := rl.Masks()
 	if !term.IsTerminal(int(os.Stdout.Fd())) {
 		return rl.Text()
 	}

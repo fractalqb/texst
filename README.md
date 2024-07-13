@@ -66,7 +66,7 @@ Jun 27 21:58:11.113 INFO  [thread2] load state from `file:test1/test.xCuf/bcplus
 …
 ```
 
-To solve this one can set a global segment line after the preamble and
+To solve this one can set a global mask line after the preamble and
 between reference text specifications. For our example one would
 write:
 

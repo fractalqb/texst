@@ -3,6 +3,7 @@ package texst
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"io"
 )
 
@@ -13,6 +14,8 @@ type Prepare struct {
 func (p Prepare) Text(ref io.Writer, subj io.Reader) (err error) {
 	if p.DefaultIGroup == 0 {
 		p.DefaultIGroup = ' '
+	} else if p.DefaultIGroup != ' ' {
+		fmt.Fprintf(ref, "%%%%%c\n", p.DefaultIGroup)
 	}
 	var sep lineSepScanner
 	scn := bufio.NewScanner(subj)

@@ -53,8 +53,16 @@ func Error(t *testing.T, hint string, subj io.Reader) error {
 	return defaultConfig.Error(t, hint, subj)
 }
 
+func ErrorString(t *testing.T, hint, subj string) error {
+	return defaultConfig.ErrorString(t, hint, subj)
+}
+
 func Fatal(t *testing.T, hint string, subj io.Reader) {
 	defaultConfig.Fatal(t, hint, subj)
+}
+
+func FatalString(t *testing.T, hint, subj string) {
+	defaultConfig.FatalString(t, hint, subj)
 }
 
 func Record(t *testing.T, hint string, subj io.Reader) {
@@ -121,6 +129,10 @@ func (cfg Config) Error(t *testing.T, hint string, subj io.Reader) error {
 	}
 }
 
+func (cfg Config) ErrorString(t *testing.T, hint, subj string) error {
+	return cfg.Error(t, hint, strings.NewReader(subj))
+}
+
 func (cfg Config) Fatal(t *testing.T, hint string, subj io.Reader) {
 	if opts := recodTest(t); opts != nil {
 		tcfg := cfg
@@ -136,6 +148,10 @@ func (cfg Config) Fatal(t *testing.T, hint string, subj io.Reader) {
 			t.Fatalf("%d mismatches", mis)
 		}
 	}
+}
+
+func (cfg Config) FatalString(t *testing.T, hint, subj string) {
+	cfg.Fatal(t, hint, strings.NewReader(subj))
 }
 
 type recordOpts struct {

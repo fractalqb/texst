@@ -69,19 +69,16 @@ func (txs *Texst) match(lno int, line []byte, ref *RefLine, match []int) {
 	}
 }
 
-func (txs *Texst) Check(reference RefDoc, subject io.Reader) (int, error) {
+func (txs *Texst) Check(reference RefDoc, subject io.Reader) (mismatchCount int, err error) {
 	igBacklog := make([]refLineQ, len(reference.IGroups()))
 	subjScan := bufio.NewScanner(subject)
 	subjLine := 0
-	mismatchCount := 0
 	var mismatch []*RefLine
 	for subjScan.Scan() {
 		subjLine++
-		if err := fillIGBacklog(reference, igBacklog); errors.Is(err, io.EOF) {
-			return mismatchCount, lineErrorf(reference,
-				"subject line %d exceeds reference text",
-				subjLine,
-			)
+		if err = fillIGBacklog(reference, igBacklog); errors.Is(err, io.EOF) {
+			txs.mismatch(subjLine, subjScan.Bytes(), nil)
+			return mismatchCount + 1, nil
 		} else if err != nil {
 			return mismatchCount, err
 		}
@@ -104,7 +101,7 @@ func (txs *Texst) Check(reference RefDoc, subject io.Reader) (int, error) {
 				continue IGOUP_LOOP
 			}
 			fail := false
-			for i, seg := range refLine.segs {
+			for i, seg := range refLine.masks {
 				if len(seg.checks) == 0 {
 					continue
 				}
@@ -136,6 +133,20 @@ func (txs *Texst) Check(reference RefDoc, subject io.Reader) (int, error) {
 			txs.match(subjLine, subjScan.Bytes(), matchLine, regexMatch)
 			reference.FreeLine(matchLine)
 		}
+	}
+	if err = fillIGBacklog(reference, igBacklog); err != nil && !errors.Is(err, io.EOF) {
+		return mismatchCount, err
+	}
+	clear(mismatch)
+	mismatch = mismatch[:0]
+	for _, ig := range igBacklog {
+		if !ig.empty() {
+			mismatch = append(mismatch, ig.first)
+		}
+	}
+	if len(mismatch) > 0 {
+		txs.mismatch(subjLine+1, nil, mismatch)
+		mismatchCount++
 	}
 	return mismatchCount, nil
 }
