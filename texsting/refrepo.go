@@ -18,7 +18,7 @@
 //	>     "User-Agent": "Go-http-client/2.0",
 //	 *                   aaaaaaaaaaaaaaaaaa
 //	>     "X-Amzn-Trace-Id": "Root=1-602f798d-1c84bdc472ff9a2d3ec50f3b"
-//	 =                             u uuuuuuuu uuuuuuuuuuuuuuuuuuuuuuuu
+//	 .                             u uuuuuuuu uuuuuuuuuuuuuuuuuuuuuuuu
 //	>   },
 //	>   "origin": "10.0.0.1",
 //	 +             aa a a a
@@ -50,19 +50,33 @@ const RecordEnv = "TEXSTING_RECORD"
 const GoTestdataDir = "testdata"
 
 func Error(t *testing.T, hint string, subj io.Reader) error {
+	t.Helper()
 	return defaultConfig.Error(t, hint, subj)
 }
 
 func ErrorString(t *testing.T, hint, subj string) error {
+	t.Helper()
 	return defaultConfig.ErrorString(t, hint, subj)
 }
 
+func ErrorPipe(t *testing.T, hint string, subj func(io.Writer)) error {
+	t.Helper()
+	return defaultConfig.ErrorPipe(t, hint, subj)
+}
+
 func Fatal(t *testing.T, hint string, subj io.Reader) {
+	t.Helper()
 	defaultConfig.Fatal(t, hint, subj)
 }
 
 func FatalString(t *testing.T, hint, subj string) {
+	t.Helper()
 	defaultConfig.FatalString(t, hint, subj)
+}
+
+func FatalPipe(t *testing.T, hint string, subj func(io.Writer)) {
+	t.Helper()
+	defaultConfig.FatalPipe(t, hint, subj)
 }
 
 func Record(t *testing.T, hint string, subj io.Reader) {
@@ -111,6 +125,7 @@ var defaultConfig = Config{
 }
 
 func (cfg Config) Error(t *testing.T, hint string, subj io.Reader) error {
+	t.Helper()
 	if opts := recodTest(t); opts != nil {
 		tcfg := cfg
 		if opts.overwrite {
@@ -119,21 +134,47 @@ func (cfg Config) Error(t *testing.T, hint string, subj io.Reader) error {
 		tcfg.Record(t, hint, subj)
 		return nil
 	} else {
-		mis, err := cfg.compare(t, hint, subj)
+		msgs, err := cfg.compare(t, hint, subj)
 		if err != nil {
-			t.Error(err)
-		} else if mis > 0 {
-			t.Errorf("%d mismatches", mis)
+			t.Fatal(err)
+		}
+		mmn := 0
+		for _, msg := range msgs {
+			switch msg[0] {
+			case 'E':
+				t.Error(msg[1:])
+				mmn++
+			case 'L':
+				t.Log(msg[1:])
+			default:
+				t.Fatal(msg)
+			}
+		}
+		if mmn > 0 {
+			t.Errorf("%d mismatches", mmn)
 		}
 		return err
 	}
 }
 
 func (cfg Config) ErrorString(t *testing.T, hint, subj string) error {
+	t.Helper()
 	return cfg.Error(t, hint, strings.NewReader(subj))
 }
 
+func (cfg Config) ErrorPipe(t *testing.T, hint string, subj func(io.Writer)) error {
+	t.Helper()
+	pr, pw := io.Pipe()
+	go func() {
+		t.Helper()
+		subj(pw)
+		pw.Close()
+	}()
+	return cfg.Error(t, hint, pr)
+}
+
 func (cfg Config) Fatal(t *testing.T, hint string, subj io.Reader) {
+	t.Helper()
 	if opts := recodTest(t); opts != nil {
 		tcfg := cfg
 		if opts.overwrite {
@@ -141,17 +182,37 @@ func (cfg Config) Fatal(t *testing.T, hint string, subj io.Reader) {
 		}
 		tcfg.Record(t, hint, subj)
 	} else {
-		mis, err := cfg.compare(t, hint, subj)
+		msgs, err := cfg.compare(t, hint, subj)
 		if err != nil {
 			t.Fatal(err)
-		} else if mis > 0 {
-			t.Fatalf("%d mismatches", mis)
+		}
+		for _, msg := range msgs {
+			switch msg[0] {
+			case 'E':
+				t.Fatal(msg[1:])
+			case 'L':
+				t.Log(msg[1:])
+			default:
+				t.Fatal(msg)
+			}
 		}
 	}
 }
 
 func (cfg Config) FatalString(t *testing.T, hint, subj string) {
+	t.Helper()
 	cfg.Fatal(t, hint, strings.NewReader(subj))
+}
+
+func (cfg Config) FatalPipe(t *testing.T, hint string, subj func(io.Writer)) {
+	t.Helper()
+	pr, pw := io.Pipe()
+	go func() {
+		t.Helper()
+		subj(pw)
+		pw.Close()
+	}()
+	cfg.Fatal(t, hint, pr)
 }
 
 type recordOpts struct {
@@ -184,10 +245,11 @@ func recodTest(t *testing.T) *recordOpts {
 	return nil
 }
 
-func (cfg *Config) compare(t *testing.T, hint string, subj io.Reader) (misNo int, err error) {
-	cmpr := &texst.Texst{OnMismatch: MismatchError(t, hint)}
+func (cfg *Config) compare(t *testing.T, hint string, subj io.Reader) (msgs []string, err error) {
+	t.Helper()
+	cmpr := &texst.Texst{OnMismatch: mismatch(&msgs, hint)}
 	if testing.Verbose() {
-		cmpr.OnMatch = MatchLog(t, hint)
+		cmpr.OnMatch = match(&msgs, hint)
 	}
 	reffile := cfg.RefFileName(t, hint)
 	if _, err := os.Stat(reffile); os.IsNotExist(err) {
@@ -195,15 +257,16 @@ func (cfg *Config) compare(t *testing.T, hint string, subj io.Reader) (misNo int
 			RecordEnv,
 			t.Name(),
 		)
-		return 0, fmt.Errorf("reference texst file %s does not exists", reffile)
+		return nil, fmt.Errorf("reference texst file %s does not exists", reffile)
 	}
 	ref, err := texst.OpenRefFile(reffile)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	defer ref.Close()
 	if !cfg.KeepSubject {
-		return cmpr.Check(ref, subj)
+		_, err = cmpr.Check(ref, subj)
+		return msgs, err
 	}
 	keepfile := reffile
 	if filepath.Ext(keepfile) == ".texst" {
@@ -211,7 +274,7 @@ func (cfg *Config) compare(t *testing.T, hint string, subj io.Reader) (misNo int
 	}
 	k, err := os.CreateTemp(filepath.Dir(keepfile), filepath.Base(keepfile)+".texst-")
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	defer func() {
 		k.Close()
@@ -219,7 +282,8 @@ func (cfg *Config) compare(t *testing.T, hint string, subj io.Reader) (misNo int
 			os.Remove(k.Name())
 		}
 	}()
-	return cmpr.Check(ref, io.TeeReader(subj, k))
+	_, err = cmpr.Check(ref, io.TeeReader(subj, k))
+	return msgs, err
 }
 
 func (cfg Config) Record(t *testing.T, hint string, subj io.Reader) {
@@ -246,13 +310,14 @@ func (cfg Config) Record(t *testing.T, hint string, subj io.Reader) {
 	t.Errorf("texst test-recorder wrote: %s", reffile)
 }
 
-func MismatchError(t *testing.T, hint string) texst.MismatchFunc {
-	if hint == "" {
-		hint = t.Name()
-	}
+func mismatch(t *[]string, hint string) texst.MismatchFunc {
 	return func(n int, l []byte, ref []*texst.RefLine) {
 		var sb strings.Builder
-		fmt.Fprintf(&sb, "mismatch %s:%d [%s]", hint, n, string(l))
+		if hint == "" {
+			fmt.Fprintf(&sb, "Emismatch:%d [%s]", n, string(l))
+		} else {
+			fmt.Fprintf(&sb, "Emismatch %s:%d [%s]", hint, n, string(l))
+		}
 		for _, r := range ref {
 			fmt.Fprintf(&sb, "\n%s:%d>%c[%s]",
 				r.SourceName(),
@@ -261,18 +326,26 @@ func MismatchError(t *testing.T, hint string) texst.MismatchFunc {
 				r.Text(),
 			)
 		}
-		t.Error(sb.String())
+		*t = append(*t, sb.String())
 	}
 }
 
-func MatchLog(t *testing.T, hint string) texst.MatchFunc {
-	if hint == "" {
-		hint = t.Name()
-	}
+func match(t *[]string, hint string) texst.MatchFunc {
 	return func(n int, l []byte, ref *texst.RefLine, match []int) {
 		if hint == "" {
-			hint = ref.SourceName()
+			hint = fmt.Sprintf("Lmatch:%d with %s:%d",
+				n,
+				ref.SourceName(),
+				ref.SourceLine(),
+			)
+		} else {
+			hint = fmt.Sprintf("Lmatch %s:%d with %s:%d",
+				hint,
+				n,
+				ref.SourceName(),
+				ref.SourceLine(),
+			)
 		}
-		t.Logf("match %s:%d with %s:%d", hint, n, ref.SourceName(), ref.SourceLine())
+		*t = append(*t, hint)
 	}
 }
